@@ -1738,3 +1738,261 @@ img {
             );
     }
 }
+
+
+/* =========================================================
+   Contacts · A–Z 字母索引 v1.0
+
+   JS 只生成结构与交互；本段 CSS 才负责启用和显示。
+   换成不含本段变量的其他全局 CSS 预设时，索引自动隐藏。
+   ========================================================= */
+
+#contacts-screen {
+    /* ---------- 功能显示开关 ---------- */
+
+    --ovo-contact-index-display: flex;
+    --ovo-contact-group-title-display: list-item;
+
+
+    /* ---------- 右侧索引 ---------- */
+
+    --ovo-contact-index-right:
+        max(
+            3px,
+            env(safe-area-inset-right, 0px)
+        );
+
+    --ovo-contact-index-width: 30px;
+    --ovo-contact-index-row-height:
+        clamp(12px, 1.4dvh, 14px);
+
+    --ovo-contact-index-font-size: 10.5px;
+    --ovo-contact-index-font-weight: 600;
+    --ovo-contact-index-color: #007aff;
+
+
+    /* ---------- Dock 式放大 ---------- */
+
+    --ovo-contact-index-active-scale: 1.18;
+    --ovo-contact-index-near-scale: 1.08;
+    --ovo-contact-index-far-scale: 1.03;
+
+    --ovo-contact-index-active-shift: -2px;
+    --ovo-contact-index-near-shift: -1px;
+    --ovo-contact-index-far-shift: 0px;
+
+    --ovo-contact-index-transition:
+        105ms
+        cubic-bezier(0.22, 0.8, 0.32, 1);
+
+
+    /* ---------- 分组标题 ---------- */
+
+    --ovo-contact-group-height: 25px;
+    --ovo-contact-group-font-size: 13px;
+    --ovo-contact-group-color: #6e6e73;
+    --ovo-contact-group-bg: rgba(247, 247, 249, 0.92);
+    --ovo-contact-group-blur: 16px;
+}
+
+
+/* 给右侧索引预留一点空间，避免压住联系人文字 */
+
+#contacts-screen .friends-section {
+    position: relative;
+    padding-right: 0 !important;
+}
+
+
+/* ---------- A / B / C 分组标题 ---------- */
+
+#contacts-screen .ovo-contact-group-title {
+    position: sticky;
+    top: var(--contacts-collapsed-height);
+    z-index: 70;
+
+    box-sizing: border-box;
+    height: var(--ovo-contact-group-height);
+    margin: 0;
+    padding: 0 20px;
+
+    list-style: none;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
+
+    font-size: var(--ovo-contact-group-font-size);
+    font-weight: 600;
+    line-height: var(--ovo-contact-group-height);
+    letter-spacing: -0.1px;
+
+    color: var(--ovo-contact-group-color);
+    background: var(--ovo-contact-group-bg);
+
+    -webkit-backdrop-filter:
+        blur(var(--ovo-contact-group-blur))
+        saturate(160%);
+
+    backdrop-filter:
+        blur(var(--ovo-contact-group-blur))
+        saturate(160%);
+
+    border: 0;
+    pointer-events: none;
+
+    scroll-margin-top:
+        calc(
+            var(--contacts-collapsed-height)
+            + 1px
+        );
+}
+
+
+/* ---------- 始终完整显示的 A–Z + # ---------- */
+
+#contacts-screen .ovo-contact-index {
+    position: fixed;
+    top: 50%;
+    right: var(--ovo-contact-index-right);
+    z-index: 90;
+
+    width: var(--ovo-contact-index-width);
+    height: auto;
+    max-height:
+        calc(
+            100dvh
+            - 180px
+        );
+
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+
+    margin: 0;
+    padding: 0;
+
+    background: transparent !important;
+    background-color: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+
+    transform: translate3d(0, -50%, 0);
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+}
+
+
+#contacts-screen .ovo-contact-index-letter {
+    all: unset;
+
+    box-sizing: border-box;
+    width: var(--ovo-contact-index-width);
+    height: var(--ovo-contact-index-row-height);
+    flex: 0 0 var(--ovo-contact-index-row-height);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    margin: 0;
+    padding: 0;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
+
+    font-size: var(--ovo-contact-index-font-size);
+    font-weight: var(--ovo-contact-index-font-weight);
+    line-height: 1;
+    text-align: center;
+
+    color: var(--ovo-contact-index-color);
+    background: transparent;
+    border: 0;
+    border-radius: 999px;
+    opacity: 1;
+
+    cursor: default;
+    pointer-events: auto;
+    touch-action: none;
+
+    transform: translate3d(0, 0, 0) scale(1);
+    transform-origin: 100% 50%;
+
+    transition:
+        transform var(--ovo-contact-index-transition);
+
+    will-change: transform;
+}
+
+
+/* 空字母与有联系人字母必须保持完全相同的外观 */
+
+#contacts-screen
+.ovo-contact-index-letter[aria-disabled="true"] {
+    color: var(--ovo-contact-index-color);
+    opacity: 1;
+}
+
+
+/* 当前手指所在字母 */
+
+#contacts-screen
+.ovo-contact-index-letter[data-ovo-index-distance="0"] {
+    transform:
+        translate3d(
+            var(--ovo-contact-index-active-shift),
+            0,
+            0
+        )
+        scale(var(--ovo-contact-index-active-scale));
+}
+
+
+/* 当前字母的左右第一邻居 */
+
+#contacts-screen
+.ovo-contact-index-letter[data-ovo-index-distance="1"] {
+    transform:
+        translate3d(
+            var(--ovo-contact-index-near-shift),
+            0,
+            0
+        )
+        scale(var(--ovo-contact-index-near-scale));
+}
+
+
+/* 当前字母的左右第二邻居 */
+
+#contacts-screen
+.ovo-contact-index-letter[data-ovo-index-distance="2"] {
+    transform:
+        translate3d(
+            var(--ovo-contact-index-far-shift),
+            0,
+            0
+        )
+        scale(var(--ovo-contact-index-far-scale));
+}
+
+
+/* 减少动态效果时仍保留定位，但取消过渡动画 */
+
+@media (prefers-reduced-motion: reduce) {
+    #contacts-screen .ovo-contact-index-letter {
+        transition: none;
+    }
+}
