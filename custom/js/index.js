@@ -153,7 +153,22 @@ function getGroupTitle(list, letter) {
 }
 
 function getContactsScrollContainer(list) {
-    return list.closest('.content');
+    let candidate = list.parentElement;
+
+    while (candidate && candidate !== document.body) {
+        const { overflowY } = getComputedStyle(candidate);
+        const allowsVerticalScrolling = /^(auto|scroll|overlay)$/.test(overflowY);
+        const hasScrollableRange = candidate.scrollHeight > candidate.clientHeight + 1;
+
+        if (allowsVerticalScrolling && hasScrollableRange) return candidate;
+        candidate = candidate.parentElement;
+    }
+
+    // Preserve a useful fallback while the screen is hidden or still laying
+    // itself out and therefore reports no measurable scroll range yet.
+    return list.closest('.content')
+        || list.closest('#contacts-screen')
+        || document.scrollingElement;
 }
 
 function scrollGroupIntoPosition(list, target, behavior) {
