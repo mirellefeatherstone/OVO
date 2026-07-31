@@ -171,6 +171,35 @@ function getContactsScrollContainer(list) {
         || document.scrollingElement;
 }
 
+function getGroupFlowTop(list, target, scrollContainer) {
+    const containerBounds = scrollContainer.getBoundingClientRect();
+    const listBounds = list.getBoundingClientRect();
+    const listStyle = getComputedStyle(list);
+    let top = (
+        scrollContainer.scrollTop
+        + listBounds.top
+        - containerBounds.top
+        + scrollContainer.clientTop
+        + (Number.parseFloat(listStyle.paddingTop) || 0)
+    );
+
+    // Sticky positioning can rewrite both getBoundingClientRect().top and
+    // offsetTop after scrolling. Reconstruct the target's normal-flow position
+    // from the rendered heights of its preceding siblings instead.
+    for (const child of list.children) {
+        if (child === target) break;
+
+        const childStyle = getComputedStyle(child);
+        top += (
+            (Number.parseFloat(childStyle.marginTop) || 0)
+            + child.offsetHeight
+            + (Number.parseFloat(childStyle.marginBottom) || 0)
+        );
+    }
+
+    return top;
+}
+
 function scrollGroupIntoPosition(list, target, behavior) {
     const scrollContainer = getContactsScrollContainer(list);
 
@@ -178,13 +207,9 @@ function scrollGroupIntoPosition(list, target, behavior) {
     // iOS Safari. During a drag, update the real contacts scroller directly
     // so reversing direction works immediately and cancels no queued motion.
     if (behavior === 'instant' && scrollContainer) {
-        const containerBounds = scrollContainer.getBoundingClientRect();
-        const targetBounds = target.getBoundingClientRect();
         const stickyTop = Number.parseFloat(getComputedStyle(target).top) || 0;
         const requestedTop = (
-            scrollContainer.scrollTop
-            + targetBounds.top
-            - containerBounds.top
+            getGroupFlowTop(list, target, scrollContainer)
             - stickyTop
         );
         const maximumTop = Math.max(
