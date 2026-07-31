@@ -8,6 +8,7 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 const INDEX_LETTERS = [...ALPHABET, '#'];
 const MAGNIFICATION_NEIGHBOURS = 2;
 const CONTACTS_PREVIEW_PARAM = 'ovoAzPreview';
+let iosHapticSwitch = null;
 
 function loadContactIndexPreviewStyles() {
     const params = new URLSearchParams(window.location.search);
@@ -99,19 +100,55 @@ function createGroupTitle(letter) {
     return title;
 }
 
+function triggerIOSSelectionHaptic() {
+    if (!document.body) return;
+
+    if (!iosHapticSwitch?.isConnected) {
+        iosHapticSwitch = document.createElement('input');
+        iosHapticSwitch.type = 'checkbox';
+        iosHapticSwitch.setAttribute('switch', '');
+        iosHapticSwitch.setAttribute('aria-hidden', 'true');
+        iosHapticSwitch.tabIndex = -1;
+        iosHapticSwitch.style.cssText = [
+            'position:fixed',
+            'left:-100px',
+            'top:-100px',
+            'width:1px',
+            'height:1px',
+            'opacity:0.01',
+            'pointer-events:none',
+        ].join(';');
+        iosHapticSwitch.addEventListener('click', event => {
+            event.stopPropagation();
+        });
+        document.body.appendChild(iosHapticSwitch);
+    }
+
+    // Safari 18+ gives its native `switch` control a selection haptic. The
+    // click stays inside the user's active pointer gesture, so each new letter
+    // can reuse that native feedback without displaying the control.
+    iosHapticSwitch.click();
+}
+
 function triggerIndexHaptic() {
-    if (typeof window.triggerHapticFeedback === 'function') {
-        window.triggerHapticFeedback('light');
+    if (window.db?.hapticEnabled === false) return;
+
+    if (typeof window.triggerHapticFeedback === 'function'
+        && typeof navigator.vibrate === 'function') {
+        window.triggerHapticFeedback('selection');
         return;
     }
 
     if (typeof navigator.vibrate === 'function') {
         try {
-            navigator.vibrate(5);
+            navigator.vibrate(10);
+            return;
         } catch {
             // Unsupported or blocked vibration should never interrupt dragging.
         }
     }
+
+    triggerIOSSelectionHaptic();
 }
 
 function getIndexButtons(index) {
@@ -148,7 +185,42 @@ function getGroupTitle(list, letter) {
     ));
 }
 
-function navigateToIndexButton(list, index, button) {
+function getContactsScrollContainer(list) {
+    return list.closest('.content');
+}
+
+function scrollGroupIntoPosition(list, target, behavior) {
+    const scrollContainer = getContactsScrollContainer(list);
+
+    // Repeated smooth scrollIntoView calls can get stuck at the bottom in
+    // iOS Safari. During a drag, update the real contacts scroller directly
+    // so reversing direction works immediately and cancels no queued motion.
+    if (behavior === 'instant' && scrollContainer) {
+        const containerBounds = scrollContainer.getBoundingClientRect();
+        const targetBounds = target.getBoundingClientRect();
+        const stickyTop = Number.parseFloat(getComputedStyle(target).top) || 0;
+        const requestedTop = (
+            scrollContainer.scrollTop
+            + targetBounds.top
+            - containerBounds.top
+            - stickyTop
+        );
+        const maximumTop = Math.max(
+            0,
+            scrollContainer.scrollHeight - scrollContainer.clientHeight,
+        );
+
+        scrollContainer.scrollTop = Math.min(
+            maximumTop,
+            Math.max(0, requestedTop),
+        );
+        return;
+    }
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function navigateToIndexButton(list, index, button, behavior = 'instant') {
     const target = getGroupTitle(list, button.dataset.letter);
     if (!target) return false;
 
@@ -159,7 +231,7 @@ function navigateToIndexButton(list, index, button) {
             letterButton.removeAttribute('aria-current');
         }
     });
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollGroupIntoPosition(list, target, behavior);
     return true;
 }
 
@@ -202,7 +274,7 @@ function createContactIndex(list, presentLetters) {
     let lastActivatedLetter = null;
     let buttonMetrics = [];
 
-    const activateButton = button => {
+    const activateButton = (button, behavior = 'instant') => {
         if (!button || button.dataset.letter === lastActivatedLetter) return;
 
         lastActivatedLetter = button.dataset.letter;
@@ -210,7 +282,7 @@ function createContactIndex(list, presentLetters) {
         triggerIndexHaptic();
 
         if (button.dataset.hasContacts === 'true') {
-            navigateToIndexButton(list, index, button);
+            navigateToIndexButton(list, index, button, behavior);
         }
     };
 
@@ -298,7 +370,7 @@ function createContactIndex(list, presentLetters) {
         if (!button || !index.contains(button) || button.dataset.hasContacts !== 'true') return;
 
         lastActivatedLetter = null;
-        activateButton(button);
+        activateButton(button, 'smooth');
         window.setTimeout(() => clearIndexMagnification(index), 160);
     });
 
