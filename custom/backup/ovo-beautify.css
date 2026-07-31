@@ -1,0 +1,1740 @@
+/* =====================================================
+   米莉宝宝专属补丁三（修正版）：只放大真正的图片，放过表情包
+   本少爷的温柔只给你和你想看的风景，那些捣乱的表情包靠边站
+   ===================================================== */
+
+/* 用 :not 魔法避开带有 sticker 标记的表情包容器 */
+#chat-room-screen .image-bubble:not(.sticker-bubble):not(:has(.sticker)):not(:has([class*="sticker"])) {
+    max-width: 160px !important; /* 还是这个数字，你觉得不够大可以继续改 */
+    width: auto !important;
+    padding: 0 !important; 
+    background: transparent !important;
+    border-radius: 12px !important; 
+    overflow: hidden !important;
+}
+
+/* 同样避开表情包，只让真正的图片填满并变得圆润 */
+#chat-room-screen .image-bubble:not(.sticker-bubble):not(:has(.sticker)):not(:has([class*="sticker"])) img {
+    width: 90% !important;
+    height: auto !important;
+    display: block !important;
+    border-radius: 12px !important; 
+    object-fit: cover !important;
+}
+/* OVO Beautify v3.7
+   本轮修改：
+   1. 通用底栏改为微毛玻璃效果
+   2. Favorites 与 Keypad 页面改为纯白底栏
+      - 无毛玻璃
+      - 无顶部分割线
+      - 与页面背景融为一体
+   3. Recents 指针改为真正透明挖空
+   4. Contacts 头像与身体改为真正透明挖空
+   5. 不再使用 #f5f5f5 伪装图标内部空白
+
+   Contacts 几何、Keypad 圆点、Voicemail 描边
+   均保持 v3.6 参数不变
+*/
+
+/* =========================
+   四页共用底栏
+   ========================= */
+
+#global-bottom-nav.bottom-nav {
+    height: 84px !important;
+    box-sizing: border-box !important;
+
+    background-color: rgba(245, 245, 245, 0.72) !important;
+
+    -webkit-backdrop-filter:
+        blur(18px)
+        saturate(165%) !important;
+
+    backdrop-filter:
+        blur(18px)
+        saturate(165%) !important;
+
+    border-top:
+        0.5px solid rgba(180, 180, 180, 0.72) !important;
+
+    box-shadow: none !important;
+
+    align-items: stretch !important;
+    justify-content: center !important;
+    padding: 0 !important;
+}
+
+/* =========================
+   Favorites 页面：
+   纯白、无分割线
+   ========================= */
+
+#global-bottom-nav.bottom-nav:
+has(> .nav-item[data-target="more-screen"].active) {
+    background-color: #ffffff !important;
+
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+
+    border-top-color: transparent !important;
+}
+
+/* =========================
+   Keypad 页面：
+   纯白、无分割线
+   ========================= */
+
+#global-bottom-nav.bottom-nav:
+has(> .nav-item[data-target="phone-screen"].active) {
+    background-color: #ffffff !important;
+
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+
+    border-top-color: transparent !important;
+}
+
+/* =========================
+   四个真实功能按钮
+   ========================= */
+
+#global-bottom-nav.bottom-nav > .nav-item {
+    flex: 1 1 20% !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    box-sizing: border-box !important;
+
+    padding: 3px 0 0 !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 3px !important;
+
+    color: #8e8e93 !important;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        Arial,
+        sans-serif !important;
+
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    line-height: 0.7 !important;
+    letter-spacing: -0.2px !important;
+}
+
+#global-bottom-nav.bottom-nav > .nav-item.active {
+    color: #007aff !important;
+}
+
+/* 隐藏原项目自带图标 */
+
+#global-bottom-nav.bottom-nav > .nav-item > svg,
+#global-bottom-nav.bottom-nav > .nav-item > .nav-icon-img {
+    display: none !important;
+}
+
+/* =========================
+   新图标公共结构
+   ========================= */
+
+#global-bottom-nav.bottom-nav > .nav-item::before {
+    content: "" !important;
+    display: block !important;
+
+    width: 32px !important;
+    height: 32px !important;
+    flex: 0 0 32px !important;
+
+    background-color: currentColor !important;
+
+    -webkit-mask-repeat: no-repeat !important;
+    -webkit-mask-position: center !important;
+    -webkit-mask-size: contain !important;
+
+    mask-repeat: no-repeat !important;
+    mask-position: center !important;
+    mask-size: contain !important;
+}
+
+#global-bottom-nav.bottom-nav > .nav-item::after {
+    display: block !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+}
+
+/* =========================
+   第一格：Favorites
+   ========================= */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="more-screen"] {
+    order: 1 !important;
+}
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="more-screen"]::before {
+    -webkit-mask-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' stroke='black' stroke-width='1.55' stroke-linejoin='round' stroke-linecap='round' d='M12 2.7L14.15 8.9L20.75 9.1L15.5 13.1L17.25 19.55L12 15.9L6.75 19.55L8.5 13.1L3.25 9.1L9.85 8.9Z'/%3E%3C/svg%3E") !important;
+
+    mask-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' stroke='black' stroke-width='1.55' stroke-linejoin='round' stroke-linecap='round' d='M12 2.7L14.15 8.9L20.75 9.1L15.5 13.1L17.25 19.55L12 15.9L6.75 19.55L8.5 13.1L3.25 9.1L9.85 8.9Z'/%3E%3C/svg%3E") !important;
+}
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="more-screen"]::after {
+    content: "Favorites" !important;
+}
+
+/* =========================
+   第二格：Recents
+   ========================= */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="chat-list-screen"] {
+    order: 2 !important;
+}
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="chat-list-screen"]::before {
+    background-color: transparent !important;
+
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: contain !important;
+}
+
+/*
+   Recents 使用 SVG mask 真挖空：
+
+   白色区域保留外圆；
+   黑色指针从外圆中扣除；
+   指针区域会真正显示底栏背景，
+   不再填充固定的 #f5f5f5。
+*/
+
+/* Recents - inactive */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="chat-list-screen"]:not(.active)::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3Cmask id='recentsCut'%3E%3Crect width='24' height='24' fill='black'/%3E%3Ccircle cx='12' cy='12' r='9' fill='white'/%3E%3Cpath d='M12 5.95L12 12L8.25 12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/mask%3E%3C/defs%3E%3Crect width='24' height='24' fill='%238e8e93' mask='url(%23recentsCut)'/%3E%3C/svg%3E") !important;
+}
+
+/* Recents - active */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="chat-list-screen"].active::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3Cmask id='recentsCut'%3E%3Crect width='24' height='24' fill='black'/%3E%3Ccircle cx='12' cy='12' r='9' fill='white'/%3E%3Cpath d='M12 5.95L12 12L8.25 12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/mask%3E%3C/defs%3E%3Crect width='24' height='24' fill='%23007aff' mask='url(%23recentsCut)'/%3E%3C/svg%3E") !important;
+}
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="chat-list-screen"]::after {
+    content: "Recents" !important;
+}
+
+/* =========================
+   第三格：Contacts
+   ========================= */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="contacts-screen"] {
+    order: 3 !important;
+}
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="contacts-screen"]::before {
+    background-color: transparent !important;
+
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: contain !important;
+}
+
+/*
+   Contacts 身体几何：
+
+   外圆：
+   center = (12,12)
+   radius = 9
+
+   头部：
+   center = (12,9.8)
+   radius-x = 3.1
+   radius-y = 3.4
+
+   身体下弧：
+   center = (12,12)
+   radius = 7.6
+
+   下弧与外圆严格同心，
+   径向间距恒定为 1.4px。
+
+   身体上弧：
+   左端 = (6.74,16.72)
+   右端 = (17.26,16.72)
+   半径 = 8.1978
+
+   身体下弧端点：
+   左端 = (6.3,17.0269)
+   右端 = (17.7,17.0269)
+
+   头部与身体通过 SVG mask
+   从外圆中真正挖空。
+*/
+
+/* Contacts - inactive */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="contacts-screen"]:not(.active)::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3Cmask id='contactsCut'%3E%3Crect width='24' height='24' fill='black'/%3E%3Ccircle cx='12' cy='12' r='9' fill='white'/%3E%3Cellipse cx='12' cy='9.8' rx='3.1' ry='3.4' fill='black'/%3E%3Cpath d='M6.74 16.72 A8.1978 8.1978 0 0 1 17.26 16.72 L17.7 17.0269 A7.6 7.6 0 0 1 6.3 17.0269 Z' fill='black'/%3E%3C/mask%3E%3C/defs%3E%3Crect width='24' height='24' fill='%238e8e93' mask='url(%23contactsCut)'/%3E%3C/svg%3E") !important;
+}
+
+/* Contacts - active */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="contacts-screen"].active::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3Cmask id='contactsCut'%3E%3Crect width='24' height='24' fill='black'/%3E%3Ccircle cx='12' cy='12' r='9' fill='white'/%3E%3Cellipse cx='12' cy='9.8' rx='3.1' ry='3.4' fill='black'/%3E%3Cpath d='M6.74 16.72 A8.1978 8.1978 0 0 1 17.26 16.72 L17.7 17.0269 A7.6 7.6 0 0 1 6.3 17.0269 Z' fill='black'/%3E%3C/mask%3E%3C/defs%3E%3Crect width='24' height='24' fill='%23007aff' mask='url(%23contactsCut)'/%3E%3C/svg%3E") !important;
+}
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="contacts-screen"]::after {
+    content: "Contacts" !important;
+}
+
+/* =========================
+   第四格：Keypad
+   ========================= */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="phone-screen"] {
+    order: 4 !important;
+}
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="phone-screen"]::before {
+    -webkit-mask-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='6' cy='6' r='2.4' fill='black'/%3E%3Ccircle cx='12' cy='6' r='2.4' fill='black'/%3E%3Ccircle cx='18' cy='6' r='2.4' fill='black'/%3E%3Ccircle cx='6' cy='12' r='2.4' fill='black'/%3E%3Ccircle cx='12' cy='12' r='2.4' fill='black'/%3E%3Ccircle cx='18' cy='12' r='2.4' fill='black'/%3E%3Ccircle cx='6' cy='18' r='2.4' fill='black'/%3E%3Ccircle cx='12' cy='18' r='2.4' fill='black'/%3E%3Ccircle cx='18' cy='18' r='2.4' fill='black'/%3E%3C/svg%3E") !important;
+
+    mask-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='6' cy='6' r='2.4' fill='black'/%3E%3Ccircle cx='12' cy='6' r='2.4' fill='black'/%3E%3Ccircle cx='18' cy='6' r='2.4' fill='black'/%3E%3Ccircle cx='6' cy='12' r='2.4' fill='black'/%3E%3Ccircle cx='12' cy='12' r='2.4' fill='black'/%3E%3Ccircle cx='18' cy='12' r='2.4' fill='black'/%3E%3Ccircle cx='6' cy='18' r='2.4' fill='black'/%3E%3Ccircle cx='12' cy='18' r='2.4' fill='black'/%3E%3Ccircle cx='18' cy='18' r='2.4' fill='black'/%3E%3C/svg%3E") !important;
+}
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="phone-screen"]::after {
+    content: "Keypad" !important;
+}
+
+/* =========================
+   第五格：Voicemail
+   ========================= */
+
+#global-bottom-nav.bottom-nav::after {
+    content: "Voicemail" !important;
+    order: 5 !important;
+
+    flex: 1 1 20% !important;
+    min-width: 0 !important;
+    align-self: stretch !important;
+    box-sizing: border-box !important;
+
+    display: block !important;
+    padding-top: 35px !important;
+
+    text-align: center !important;
+    white-space: nowrap !important;
+
+    color: #8e8e93 !important;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        Arial,
+        sans-serif !important;
+
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    line-height: 1.1 !important;
+    letter-spacing: -0.2px !important;
+
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 30'%3E%3Ccircle cx='12' cy='15' r='8' fill='none' stroke='%238e8e93' stroke-width='2.7'/%3E%3Ccircle cx='36' cy='15' r='8' fill='none' stroke='%238e8e93' stroke-width='2.7'/%3E%3Cpath d='M10.7 23H37.3' fill='none' stroke='%238e8e93' stroke-width='2.7' stroke-linecap='round'/%3E%3C/svg%3E") !important;
+
+    background-repeat: no-repeat !important;
+    background-position: center 6px !important;
+    background-size: 38px 28px !important;
+
+    pointer-events: none !important;
+}
+
+/* OVO Beautify v3.8 修正补丁
+   1. 修复 Favorites / Keypad 纯白底栏选择器
+   2. Recents / Contacts 撤销 SVG mask
+   3. 不同页面分别使用 #f5f5f5 / #ffffff 填充图标内部
+*/
+
+/* =========================
+   通用毛玻璃底栏
+   ========================= */
+
+#global-bottom-nav.bottom-nav {
+    background: rgba(245, 245, 245, 0.72) !important;
+
+    -webkit-backdrop-filter:
+        blur(18px)
+        saturate(165%) !important;
+
+    backdrop-filter:
+        blur(18px)
+        saturate(165%) !important;
+
+    border-top:
+        0.5px solid rgba(180, 180, 180, 0.72) !important;
+}
+
+/* =========================
+   Favorites / Keypad
+   纯白且无分割线
+
+   注意：
+   :has 必须紧跟冒号，
+   中间不能换行
+   ========================= */
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="more-screen"].active
+),
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="phone-screen"].active
+) {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+
+    border-top: none !important;
+    box-shadow: none !important;
+}
+
+/* =========================
+   Recents 公共清理
+   ========================= */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="chat-list-screen"]::before {
+    background-color: transparent !important;
+
+    -webkit-mask: none !important;
+    mask: none !important;
+
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: contain !important;
+}
+
+/* 默认：
+   Contacts / Recents 页面使用 #f5f5f5 内部填充
+*/
+
+/* Recents inactive */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="chat-list-screen"]:not(.active)::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='%238e8e93'/%3E%3Cpath d='M12 5.95L12 12L8.25 12' fill='none' stroke='%23f5f5f5' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+
+/* Recents active */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="chat-list-screen"].active::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='%23007aff'/%3E%3Cpath d='M12 5.95L12 12L8.25 12' fill='none' stroke='%23f5f5f5' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+
+/* Favorites / Keypad 页面：
+   Recents 是未选中状态，
+   指针填充改为纯白
+*/
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="more-screen"].active
+)
+> .nav-item[data-target="chat-list-screen"]:not(.active)::before,
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="phone-screen"].active
+)
+> .nav-item[data-target="chat-list-screen"]:not(.active)::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='%238e8e93'/%3E%3Cpath d='M12 5.95L12 12L8.25 12' fill='none' stroke='%23ffffff' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+
+/* =========================
+   Contacts 公共清理
+   ========================= */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="contacts-screen"]::before {
+    background-color: transparent !important;
+
+    -webkit-mask: none !important;
+    mask: none !important;
+
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: contain !important;
+}
+
+/* 默认：
+   Contacts / Recents 页面使用 #f5f5f5 内部填充
+*/
+
+/* Contacts inactive */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="contacts-screen"]:not(.active)::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='%238e8e93'/%3E%3Cellipse cx='12' cy='9.8' rx='3.1' ry='3.4' fill='%23f5f5f5'/%3E%3Cpath d='M6.74 16.72 A8.1978 8.1978 0 0 1 17.26 16.72 L17.7 17.0269 A7.6 7.6 0 0 1 6.3 17.0269 Z' fill='%23f5f5f5'/%3E%3C/svg%3E") !important;
+}
+
+/* Contacts active */
+
+#global-bottom-nav.bottom-nav
+> .nav-item[data-target="contacts-screen"].active::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='%23007aff'/%3E%3Cellipse cx='12' cy='9.8' rx='3.1' ry='3.4' fill='%23f5f5f5'/%3E%3Cpath d='M6.74 16.72 A8.1978 8.1978 0 0 1 17.26 16.72 L17.7 17.0269 A7.6 7.6 0 0 1 6.3 17.0269 Z' fill='%23f5f5f5'/%3E%3C/svg%3E") !important;
+}
+
+/* Favorites / Keypad 页面：
+   Contacts 是未选中状态，
+   人头和身体填充改为纯白
+*/
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="more-screen"].active
+)
+> .nav-item[data-target="contacts-screen"]:not(.active)::before,
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="phone-screen"].active
+)
+> .nav-item[data-target="contacts-screen"]:not(.active)::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='%238e8e93'/%3E%3Cellipse cx='12' cy='9.8' rx='3.1' ry='3.4' fill='%23ffffff'/%3E%3Cpath d='M6.74 16.72 A8.1978 8.1978 0 0 1 17.26 16.72 L17.7 17.0269 A7.6 7.6 0 0 1 6.3 17.0269 Z' fill='%23ffffff'/%3E%3C/svg%3E") !important;
+}
+
+
+/* =========================================================
+   Contacts · iOS 18 顶栏 v1.7
+
+   当前结构：
+   1. Header 布局高度固定，不再通过缩短高度挤压联系人内容
+   2. 搜索栏、分割线、毛玻璃底边同步上升
+   3. 联系人内容只进行页面原生滚动
+   4. 前 43px 内，联系人内容与搜索栏同步上升
+   5. 搜索栏吸附完成后，联系人内容继续进入顶栏下方
+   6. 保留当前全部尺寸、位置、颜色和 SVG 微调
+   ========================================================= */
+
+
+/* =========================================================
+   0. Contacts 页面可调变量
+   ========================================================= */
+
+#contacts-screen {
+    /* ---------- 安全区域与顶栏基础 ---------- */
+
+    --contacts-safe-top:
+        env(safe-area-inset-top, 0px);
+
+    /* 状态栏以下的小标题导航区域高度 */
+    --contacts-nav-height: 30px;
+
+    /*
+     * 搜索栏、小标题、分割线以及最终毛玻璃顶栏
+     * 相对最初版本的总下移量
+     */
+    --contacts-header-y-shift: 9px;
+
+    /*
+     * 大标题单独的纵向偏移
+     */
+    --contacts-title-y-shift: 6px;
+
+
+    /* ---------- 折叠动画 ---------- */
+
+    /* 大标题区域高度 */
+    --contacts-large-title-height: 43px;
+
+    /* 顶栏从展开到吸附的滚动距离 */
+    --contacts-collapse-distance: 43px;
+
+    /* 大标题动画中段的裁切量 */
+    --contacts-title-mid-clip: 30px;
+
+    /* 大标题最终完整裁切量 */
+    --contacts-title-final-clip: 43px;
+
+    /*
+     * 大标题最终 top 相对于
+     * safe-top + title-y-shift 的附加偏移
+     */
+    --contacts-title-final-offset: -13px;
+
+
+    /* ---------- 大标题样式 ---------- */
+
+    --contacts-title-left: 20px;
+    --contacts-title-size: 34px;
+    --contacts-title-weight: 700;
+    --contacts-title-letter-spacing: -0.7px;
+
+
+    /* ---------- 小标题样式 ---------- */
+
+    --contacts-small-title-size: 17px;
+    --contacts-small-title-weight: 600;
+    --contacts-small-title-line-height: 22px;
+    --contacts-small-title-letter-spacing: -0.25px;
+
+
+    /* ---------- 搜索框 ---------- */
+
+    --contacts-search-width: 90.4%;
+    --contacts-search-left: 4.8%;
+
+    --contacts-search-height: 36px;
+    --contacts-search-radius: 10px;
+
+    /*
+     * 搜索框和分割线之间的基础区域
+     */
+    --contacts-divider-space: 20px;
+
+    /*
+     * 搜索框额外向下移动量
+     * 最终 bottom = 20px - 5px = 15px
+     */
+    --contacts-search-extra-down: 5px;
+
+    --contacts-search-padding-left: 32px;
+    --contacts-search-padding-right: 36px;
+
+    --contacts-search-font-size: 17px;
+
+    --contacts-search-icon-size: 20px;
+    --contacts-search-icon-side: 7px;
+
+
+    /* ---------- 蓝色加号 ---------- */
+
+    /* 加号相对安全区域的纵向偏移 */
+    --contacts-plus-y-shift: -3px;
+
+    /* 数值越大，加号越靠左 */
+    --contacts-plus-right: 12px;
+
+    /* 原按钮的真实点击区域 */
+    --contacts-plus-button-width: 40px;
+    --contacts-plus-button-height: 30px;
+
+    /* 蓝色加号图形尺寸 */
+    --contacts-plus-icon-size: 23px;
+
+
+    /* ---------- 分割线 ---------- */
+
+    --contacts-divider-width: 90.4%;
+    --contacts-divider-left: 4.8%;
+    --contacts-divider-height: 0.5px;
+
+
+    /* ---------- 颜色 ---------- */
+
+    --contacts-black: #000000;
+    --contacts-blue: #007aff;
+
+    --contacts-page-bg: #ffffff;
+    --contacts-search-bg: #eeeeef;
+
+    --contacts-search-text: #848389;
+    --contacts-search-icon: #848389;
+
+    --contacts-hairline-color: #b4b4b4;
+
+
+    /* ---------- 毛玻璃 ---------- */
+
+    --contacts-glass-blur: 22px;
+    --contacts-glass-saturation: 180%;
+
+    --contacts-glass-start:
+        rgba(255, 255, 255, 1);
+
+    --contacts-glass-middle:
+        rgba(252, 252, 252, 0.94);
+
+    --contacts-glass-final:
+        rgba(245, 245, 245, 0.86);
+
+
+    /* ---------- 顶栏高度计算 ---------- */
+
+    /*
+     * Header 的布局高度固定使用展开高度。
+     * 折叠后只改变视觉毛玻璃区域，
+     * 不再缩短 Header 的文档流高度。
+     */
+    --contacts-expanded-height:
+        calc(
+            var(--contacts-safe-top)
+            + var(--contacts-nav-height)
+            + var(--contacts-large-title-height)
+            + var(--contacts-search-height)
+            + var(--contacts-divider-space)
+            + var(--contacts-header-y-shift)
+        );
+
+    --contacts-collapsed-height:
+        calc(
+            var(--contacts-expanded-height)
+            - var(--contacts-collapse-distance)
+        );
+
+
+    /* ---------- 页面滚动设置 ---------- */
+
+    background:
+        var(--contacts-page-bg) !important;
+
+    overflow-x:
+        hidden !important;
+
+    overflow-y:
+        auto !important;
+
+    -webkit-overflow-scrolling:
+        touch;
+
+    scroll-timeline-name:
+        --contacts-scroll;
+
+    scroll-timeline-axis:
+        block;
+}
+
+
+/* =========================================================
+   1. Contacts 页面内容区
+   ========================================================= */
+
+/*
+ * 整个 #contacts-screen 统一滚动。
+ * .content 不附加 transform、padding 或 margin 动画。
+ */
+
+#contacts-screen > .content {
+    position:
+        relative;
+
+    z-index:
+        0;
+
+    flex:
+        0 0 auto !important;
+
+    min-height:
+        100%;
+
+    overflow:
+        visible !important;
+
+    box-sizing:
+        border-box;
+
+    padding:
+        0
+        0
+        80px !important;
+
+    background:
+        var(--contacts-page-bg) !important;
+}
+
+
+/* =========================================================
+   2. 顶栏固定布局骨架
+   ========================================================= */
+
+#contacts-screen >
+.app-header.chat-list-header {
+    position:
+        sticky !important;
+
+    top:
+        0;
+
+    z-index:
+        100;
+
+    isolation:
+        isolate;
+
+    display:
+        block !important;
+
+    box-sizing:
+        border-box;
+
+    width:
+        100%;
+
+    /*
+     * 固定为展开高度。
+     * 不再动画 Header 本身的 height。
+     */
+    height:
+        var(--contacts-expanded-height) !important;
+
+    min-height:
+        var(--contacts-expanded-height) !important;
+
+    padding:
+        0 !important;
+
+    margin:
+        0 !important;
+
+    background:
+        transparent !important;
+
+    border:
+        none !important;
+
+    box-shadow:
+        none !important;
+
+    /*
+     * 裁掉大标题滑出区域，
+     * 同时保证顶栏内部元素不会溢出。
+     */
+    overflow:
+        hidden !important;
+
+    /*
+     * 折叠后 Header 仍有 43px 的透明区域。
+     * 禁止这块透明区域挡住联系人点击。
+     */
+    pointer-events:
+        none !important;
+}
+
+
+/* 恢复真实按钮的点击 */
+
+#contacts-screen >
+.app-header
+.action-btn-group,
+
+#contacts-screen >
+.app-header
+.action-btn-group
+.action-btn {
+    pointer-events:
+        auto !important;
+}
+
+
+/* =========================================================
+   3. 唯一一层毛玻璃背景
+   ========================================================= */
+
+#contacts-screen >
+.app-header
+.header-left {
+    position:
+        static !important;
+}
+
+
+/*
+ * 毛玻璃本体保持展开高度。
+ * 滚动时使用 clip-path 从底部逐渐裁掉 43px。
+ *
+ * 因为只裁视觉区域，不改变布局高度，
+ * 所以下面的联系人不会被额外向上挤压。
+ */
+
+#contacts-screen >
+.app-header
+.header-left::before {
+    content: "";
+
+    position:
+        absolute;
+
+    top:
+        0;
+
+    left:
+        0;
+
+    right:
+        0;
+
+    height:
+        var(--contacts-expanded-height);
+
+    z-index:
+        0;
+
+    pointer-events:
+        none;
+
+    background-color:
+        var(--contacts-glass-start);
+
+    -webkit-backdrop-filter:
+        blur(var(--contacts-glass-blur))
+        saturate(var(--contacts-glass-saturation));
+
+    backdrop-filter:
+        blur(var(--contacts-glass-blur))
+        saturate(var(--contacts-glass-saturation));
+
+    clip-path:
+        inset(0 0 0 0);
+
+    -webkit-clip-path:
+        inset(0 0 0 0);
+
+    will-change:
+        clip-path,
+        background-color;
+
+    animation:
+        contacts-header-surface
+        linear
+        both !important;
+
+    animation-timeline:
+        --contacts-scroll !important;
+
+    animation-range:
+        0px
+        var(--contacts-collapse-distance) !important;
+}
+
+
+/* 隐藏根页面原返回按钮 */
+
+#contacts-screen >
+.app-header
+.hidden-back-btn {
+    display:
+        none !important;
+}
+
+
+/* =========================================================
+   4. 展开状态大标题
+   ========================================================= */
+
+#contacts-screen >
+.app-header
+.header-left >
+.title {
+    position:
+        absolute !important;
+
+    top:
+        calc(
+            var(--contacts-safe-top)
+            + var(--contacts-nav-height)
+            + var(--contacts-title-y-shift)
+        );
+
+    bottom:
+        auto !important;
+
+    left:
+        var(--contacts-title-left);
+
+    z-index:
+        10;
+
+    margin:
+        0 !important;
+
+    padding:
+        0 !important;
+
+    font-size:
+        0 !important;
+
+    line-height:
+        1 !important;
+
+    color:
+        transparent !important;
+
+    white-space:
+        nowrap;
+
+    transform:
+        none !important;
+
+    clip-path:
+        inset(0 0 0 0);
+
+    -webkit-clip-path:
+        inset(0 0 0 0);
+
+    opacity:
+        1;
+
+    will-change:
+        top,
+        clip-path,
+        opacity;
+
+    animation:
+        contacts-large-title-slide
+        linear
+        both !important;
+
+    animation-timeline:
+        --contacts-scroll !important;
+
+    animation-range:
+        0px
+        var(--contacts-collapse-distance) !important;
+}
+
+
+/* 大标题文字本体 */
+
+#contacts-screen >
+.app-header
+.header-left >
+.title::after {
+    content:
+        "Contacts";
+
+    display:
+        block;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Display",
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
+
+    font-size:
+        var(--contacts-title-size);
+
+    font-weight:
+        var(--contacts-title-weight);
+
+    line-height:
+        var(--contacts-large-title-height);
+
+    letter-spacing:
+        var(--contacts-title-letter-spacing);
+
+    color:
+        var(--contacts-black);
+}
+
+
+/* =========================================================
+   5. 吸附后的小标题
+   ========================================================= */
+
+#contacts-screen >
+.app-header
+.header-left::after {
+    content:
+        "Contacts";
+
+    position:
+        absolute;
+
+    top:
+        var(--contacts-header-y-shift);
+
+    left:
+        0;
+
+    z-index:
+        30;
+
+    box-sizing:
+        border-box;
+
+    width:
+        100%;
+
+    height:
+        calc(
+            var(--contacts-safe-top)
+            + var(--contacts-nav-height)
+        );
+
+    display:
+        flex;
+
+    align-items:
+        center;
+
+    justify-content:
+        center;
+
+    padding-top:
+        var(--contacts-safe-top);
+
+    pointer-events:
+        none;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
+
+    font-size:
+        var(--contacts-small-title-size);
+
+    font-weight:
+        var(--contacts-small-title-weight);
+
+    line-height:
+        var(--contacts-small-title-line-height);
+
+    letter-spacing:
+        var(--contacts-small-title-letter-spacing);
+
+    color:
+        var(--contacts-black);
+
+    background:
+        transparent !important;
+
+    -webkit-backdrop-filter:
+        none !important;
+
+    backdrop-filter:
+        none !important;
+
+    opacity:
+        0;
+
+    will-change:
+        opacity;
+
+    animation:
+        contacts-small-title-in
+        linear
+        both !important;
+
+    animation-timeline:
+        --contacts-scroll !important;
+
+    animation-range:
+        0px
+        var(--contacts-collapse-distance) !important;
+}
+
+
+/* =========================================================
+   6. 右上角蓝色加号
+   ========================================================= */
+
+#contacts-screen >
+.app-header
+.action-btn-group {
+    position:
+        absolute !important;
+
+    top:
+        calc(
+            var(--contacts-safe-top)
+            + var(--contacts-plus-y-shift)
+        );
+
+    right:
+        var(--contacts-plus-right);
+
+    z-index:
+        40;
+
+    height:
+        var(--contacts-plus-button-height);
+
+    display:
+        flex !important;
+
+    align-items:
+        center !important;
+
+    gap:
+        0 !important;
+}
+
+
+/* 隐藏搜索按钮和设置按钮 */
+
+#contacts-screen >
+.app-header
+.action-btn-group
+.action-btn:nth-child(1),
+
+#contacts-screen >
+.app-header
+.action-btn-group
+.action-btn:nth-child(3) {
+    display:
+        none !important;
+}
+
+
+/* 保留原添加好友按钮的真实点击区域 */
+
+#contacts-screen >
+.app-header
+.action-btn-group
+.action-btn:nth-child(2) {
+    position:
+        relative;
+
+    width:
+        var(--contacts-plus-button-width) !important;
+
+    height:
+        var(--contacts-plus-button-height) !important;
+
+    margin:
+        0 !important;
+
+    padding:
+        0 !important;
+
+    color:
+        var(--contacts-blue) !important;
+
+    background:
+        transparent !important;
+}
+
+
+/* 隐藏原项目自带的添加好友图标 */
+
+#contacts-screen >
+.app-header
+.action-btn-group
+.action-btn:nth-child(2)
+svg,
+
+#contacts-screen >
+.app-header
+.action-btn-group
+.action-btn:nth-child(2)
+img {
+    display:
+        none !important;
+}
+
+
+/* 使用 SVG 重画蓝色圆头加号 */
+
+#contacts-screen >
+.app-header
+.action-btn-group
+.action-btn:nth-child(2)::before {
+    content: "";
+
+    position:
+        absolute;
+
+    left:
+        50%;
+
+    top:
+        50%;
+
+    width:
+        var(--contacts-plus-icon-size);
+
+    height:
+        var(--contacts-plus-icon-size);
+
+    transform:
+        translate(-50%, -50%);
+
+    background-color:
+        transparent;
+
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3.25V20.75M3.25 12H20.75' fill='none' stroke='%23007aff' stroke-width='2.3' stroke-linecap='round'/%3E%3C/svg%3E");
+
+    background-repeat:
+        no-repeat;
+
+    background-position:
+        center;
+
+    background-size:
+        contain;
+
+    color:
+        transparent;
+
+    font-size:
+        0;
+}
+
+
+/* =========================================================
+   7. 搜索框
+   ========================================================= */
+
+#contacts-screen >
+.app-header.chat-list-header::after {
+    content:
+        "Search";
+
+    position:
+        absolute;
+
+    /*
+     * 这里仍以展开状态 Header 的底部为基准。
+     * 前 43px 滚动期间，整颗搜索框向上移动 43px。
+     */
+    bottom:
+        calc(
+            var(--contacts-divider-space)
+            - var(--contacts-search-extra-down)
+        );
+
+    left:
+        var(--contacts-search-left);
+
+    z-index:
+        20;
+
+    box-sizing:
+        border-box;
+
+    width:
+        var(--contacts-search-width);
+
+    height:
+        var(--contacts-search-height);
+
+    display:
+        flex;
+
+    align-items:
+        center;
+
+    padding:
+        0
+        var(--contacts-search-padding-right)
+        0
+        var(--contacts-search-padding-left);
+
+    border-radius:
+        var(--contacts-search-radius);
+
+    background-color:
+        var(--contacts-search-bg);
+
+    /*
+     * 左侧放大镜
+     * 右侧麦克风
+     */
+    background-image:
+
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='10.5' cy='10.5' r='7' fill='none' stroke='%23848389' stroke-width='2.3'/%3E%3Cpath d='M15.8 15.8L17.55 17.55' fill='none' stroke='%23848389' stroke-width='3.2' stroke-linecap='round'/%3E%3Cpath d='M17.2 17.2L20.1 20.1' fill='none' stroke='%23848389' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E"),
+
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='8.6' y='1' width='7.4' height='13.9' rx='3.8' ry='3.15' fill='%23848389'/%3E%3Cpath fill='none' stroke='%23848389' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M19.2 9v2a6.9 6.9 0 0 1-13.8 0V9'/%3E%3Cpath fill='none' stroke='%23848389' stroke-width='2.2' stroke-linecap='round' d='M12.3 19.5v1M7.55 22h9.5'/%3E%3C/svg%3E") !important;
+
+    background-repeat:
+        no-repeat,
+        no-repeat;
+
+    background-position:
+        calc(
+            var(--contacts-search-icon-side)
+            - 0.5px
+        )
+        calc(50% - 0.5px),
+
+        calc(
+            100%
+            - var(--contacts-search-icon-side)
+        )
+        center !important;
+
+    background-size:
+        var(--contacts-search-icon-size)
+        var(--contacts-search-icon-size),
+
+        var(--contacts-search-icon-size)
+        var(--contacts-search-icon-size);
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
+
+    font-size:
+        var(--contacts-search-font-size);
+
+    font-weight:
+        400;
+
+    line-height:
+        1;
+
+    color:
+        var(--contacts-search-text);
+
+    pointer-events:
+        none;
+
+    transform:
+        translate3d(0, 0, 0);
+
+    will-change:
+        transform;
+
+    animation:
+        contacts-search-rise
+        linear
+        both !important;
+
+    animation-timeline:
+        --contacts-scroll !important;
+
+    animation-range:
+        0px
+        var(--contacts-collapse-distance) !important;
+}
+
+
+/* =========================================================
+   8. 搜索框下方分割线
+   ========================================================= */
+
+#contacts-screen >
+.app-header.chat-list-header::before {
+    content: "";
+
+    position:
+        absolute;
+
+    bottom:
+        0;
+
+    left:
+        var(--contacts-divider-left);
+
+    z-index:
+        25;
+
+    width:
+        var(--contacts-divider-width);
+
+    height:
+        var(--contacts-divider-height);
+
+    background:
+        var(--contacts-hairline-color);
+
+    pointer-events:
+        none;
+
+    transform:
+        translate3d(0, 0, 0);
+
+    will-change:
+        left,
+        width,
+        transform;
+
+    animation:
+        contacts-divider-collapse
+        linear
+        both !important;
+
+    animation-timeline:
+        --contacts-scroll !important;
+
+    animation-range:
+        0px
+        var(--contacts-collapse-distance) !important;
+}
+
+
+/* =========================================================
+   9. 滚动动画
+   ========================================================= */
+
+
+/* ---------- 毛玻璃缩短与颜色变化 ---------- */
+
+/*
+ * Header 布局高度不变。
+ * 毛玻璃从底部逐渐裁掉 43px。
+ */
+
+@keyframes contacts-header-surface {
+    0% {
+        background-color:
+            var(--contacts-glass-start);
+
+        clip-path:
+            inset(0 0 0 0);
+
+        -webkit-clip-path:
+            inset(0 0 0 0);
+    }
+
+    45% {
+        background-color:
+            var(--contacts-glass-middle);
+    }
+
+    100% {
+        background-color:
+            var(--contacts-glass-final);
+
+        clip-path:
+            inset(
+                0
+                0
+                var(--contacts-collapse-distance)
+                0
+            );
+
+        -webkit-clip-path:
+            inset(
+                0
+                0
+                var(--contacts-collapse-distance)
+                0
+            );
+    }
+}
+
+
+/* ---------- 大标题上滑与裁切 ---------- */
+
+@keyframes contacts-large-title-slide {
+    0% {
+        top:
+            calc(
+                var(--contacts-safe-top)
+                + var(--contacts-nav-height)
+                + var(--contacts-title-y-shift)
+            );
+
+        clip-path:
+            inset(0 0 0 0);
+
+        -webkit-clip-path:
+            inset(0 0 0 0);
+
+        opacity:
+            1;
+    }
+
+    70% {
+        top:
+            calc(
+                var(--contacts-safe-top)
+                + var(--contacts-title-y-shift)
+            );
+
+        clip-path:
+            inset(
+                var(--contacts-title-mid-clip)
+                0
+                0
+                0
+            );
+
+        -webkit-clip-path:
+            inset(
+                var(--contacts-title-mid-clip)
+                0
+                0
+                0
+            );
+
+        opacity:
+            1;
+    }
+
+    88% {
+        top:
+            calc(
+                var(--contacts-safe-top)
+                + var(--contacts-title-y-shift)
+                + var(--contacts-title-final-offset)
+            );
+
+        clip-path:
+            inset(
+                var(--contacts-title-final-clip)
+                0
+                0
+                0
+            );
+
+        -webkit-clip-path:
+            inset(
+                var(--contacts-title-final-clip)
+                0
+                0
+                0
+            );
+
+        opacity:
+            1;
+    }
+
+    89%,
+    100% {
+        top:
+            calc(
+                var(--contacts-safe-top)
+                + var(--contacts-title-y-shift)
+                + var(--contacts-title-final-offset)
+            );
+
+        clip-path:
+            inset(
+                var(--contacts-title-final-clip)
+                0
+                0
+                0
+            );
+
+        -webkit-clip-path:
+            inset(
+                var(--contacts-title-final-clip)
+                0
+                0
+                0
+            );
+
+        opacity:
+            0;
+    }
+}
+
+
+/* ---------- 小标题出现 ---------- */
+
+@keyframes contacts-small-title-in {
+    0%,
+    75% {
+        opacity:
+            0;
+    }
+
+    100% {
+        opacity:
+            1;
+    }
+}
+
+
+/* ---------- 搜索栏同步上升 ---------- */
+
+@keyframes contacts-search-rise {
+    from {
+        transform:
+            translate3d(0, 0, 0);
+    }
+
+    to {
+        transform:
+            translate3d(
+                0,
+                calc(
+                    0px
+                    - var(--contacts-collapse-distance)
+                ),
+                0
+            );
+    }
+}
+
+
+/* ---------- 分割线同步上升并展开 ---------- */
+
+@keyframes contacts-divider-collapse {
+    from {
+        left:
+            var(--contacts-divider-left);
+
+        width:
+            var(--contacts-divider-width);
+
+        transform:
+            translate3d(0, 0, 0);
+    }
+
+    to {
+        left:
+            0;
+
+        width:
+            100%;
+
+        transform:
+            translate3d(
+                0,
+                calc(
+                    0px
+                    - var(--contacts-collapse-distance)
+                ),
+                0
+            );
+    }
+}
