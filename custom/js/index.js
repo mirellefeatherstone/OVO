@@ -107,6 +107,7 @@ function triggerIOSSelectionHaptic() {
         iosHapticSwitch = document.createElement('input');
         iosHapticSwitch.type = 'checkbox';
         iosHapticSwitch.setAttribute('switch', '');
+        iosHapticSwitch.dataset.ovoIgnoreRescueGesture = 'true';
         iosHapticSwitch.setAttribute('aria-hidden', 'true');
         iosHapticSwitch.tabIndex = -1;
         iosHapticSwitch.style.cssText = [

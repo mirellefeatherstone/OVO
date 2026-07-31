@@ -690,6 +690,9 @@ function setupGlobalRescueGesture() {
     const CLICK_TIMEOUT = 400; // 400ms 间隔
 
     document.addEventListener('click', (e) => {
+        // Custom controls can generate internal clicks (for example, iOS
+        // haptic feedback). They must never open the destructive rescue panel.
+        if (e.target?.closest?.('[data-ovo-ignore-rescue-gesture]')) return;
         const now = Date.now();
         const gap = now - globalRescueLastClickTime;
         
