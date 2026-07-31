@@ -8,7 +8,6 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 const INDEX_LETTERS = [...ALPHABET, '#'];
 const MAGNIFICATION_NEIGHBOURS = 2;
 const CONTACTS_PREVIEW_PARAM = 'ovoAzPreview';
-let iosHapticSwitch = null;
 
 function loadContactIndexPreviewStyles() {
     const params = new URLSearchParams(window.location.search);
@@ -100,37 +99,6 @@ function createGroupTitle(letter) {
     return title;
 }
 
-function triggerIOSSelectionHaptic() {
-    if (!document.body) return;
-
-    if (!iosHapticSwitch?.isConnected) {
-        iosHapticSwitch = document.createElement('input');
-        iosHapticSwitch.type = 'checkbox';
-        iosHapticSwitch.setAttribute('switch', '');
-        iosHapticSwitch.dataset.ovoIgnoreRescueGesture = 'true';
-        iosHapticSwitch.setAttribute('aria-hidden', 'true');
-        iosHapticSwitch.tabIndex = -1;
-        iosHapticSwitch.style.cssText = [
-            'position:fixed',
-            'left:-100px',
-            'top:-100px',
-            'width:1px',
-            'height:1px',
-            'opacity:0.01',
-            'pointer-events:none',
-        ].join(';');
-        iosHapticSwitch.addEventListener('click', event => {
-            event.stopPropagation();
-        });
-        document.body.appendChild(iosHapticSwitch);
-    }
-
-    // Safari 18+ gives its native `switch` control a selection haptic. The
-    // click stays inside the user's active pointer gesture, so each new letter
-    // can reuse that native feedback without displaying the control.
-    iosHapticSwitch.click();
-}
-
 function triggerIndexHaptic() {
     if (window.db?.hapticEnabled === false) return;
 
@@ -148,8 +116,6 @@ function triggerIndexHaptic() {
             // Unsupported or blocked vibration should never interrupt dragging.
         }
     }
-
-    triggerIOSSelectionHaptic();
 }
 
 function getIndexButtons(index) {
