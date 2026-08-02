@@ -15,6 +15,9 @@ let contactsScreenStateObserver = null;
 let contactsScreenResizeObserver = null;
 let trackedContactsList = null;
 let pinObserverFrame = 0;
+let overscrollFrame = 0;
+let overscrollScreen = null;
+let overscrollList = null;
 
 function loadContactIndexPreviewStyles() {
     const params = new URLSearchParams(window.location.search);
@@ -113,6 +116,87 @@ function clearPinnedGroupState(list) {
     });
 }
 
+function clearOverscrollGlassState(list) {
+    list?.querySelectorAll(`.${GROUP_TITLE_CLASS}[data-ovo-overscroll-glass]`)
+        .forEach(title => {
+            delete title.dataset.ovoOverscrollGlass;
+            title.style.removeProperty('--ovo-contact-overscroll-glass-opacity');
+        });
+}
+
+function updateOverscrollGlassState() {
+    const screen = overscrollScreen;
+    const list = overscrollList;
+    if (!screen || !list || !screen.classList.contains('active')) {
+        clearOverscrollGlassState(list);
+        return;
+    }
+
+    const maximumTop = Math.max(0, screen.scrollHeight - screen.clientHeight);
+    if (screen.scrollTop <= maximumTop + 0.5) {
+        clearOverscrollGlassState(list);
+        return;
+    }
+
+    list.querySelectorAll(`.${GROUP_TITLE_CLASS}`).forEach(title => {
+        const glassStart = Number.parseFloat(
+            title.style.getPropertyValue('--ovo-contact-glass-start'),
+        );
+        const glassEnd = Number.parseFloat(
+            title.style.getPropertyValue('--ovo-contact-glass-end'),
+        );
+
+        // Normal scroll-timeline animation already owns every reachable group.
+        // Only headings beyond the real maximum scroll position need the
+        // temporary iOS rubber-band override.
+        if (!Number.isFinite(glassStart)
+            || !Number.isFinite(glassEnd)
+            || glassEnd <= maximumTop + 0.5) {
+            delete title.dataset.ovoOverscrollGlass;
+            title.style.removeProperty('--ovo-contact-overscroll-glass-opacity');
+            return;
+        }
+
+        const distance = Math.max(1, glassEnd - glassStart);
+        const progress = Math.min(
+            1,
+            Math.max(0, (screen.scrollTop - glassStart) / distance),
+        );
+
+        if (progress <= 0) {
+            delete title.dataset.ovoOverscrollGlass;
+            title.style.removeProperty('--ovo-contact-overscroll-glass-opacity');
+            return;
+        }
+
+        title.dataset.ovoOverscrollGlass = 'true';
+        title.style.setProperty(
+            '--ovo-contact-overscroll-glass-opacity',
+            progress.toFixed(3),
+        );
+    });
+}
+
+function scheduleOverscrollGlassUpdate() {
+    if (overscrollFrame) return;
+
+    overscrollFrame = requestAnimationFrame(() => {
+        overscrollFrame = 0;
+        updateOverscrollGlassState();
+    });
+}
+
+function setupOverscrollGlassTracking(list, screen) {
+    if (overscrollScreen === screen && overscrollList === list) return;
+
+    overscrollScreen?.removeEventListener('scroll', scheduleOverscrollGlassUpdate);
+    clearOverscrollGlassState(overscrollList);
+
+    overscrollScreen = screen;
+    overscrollList = list;
+    screen.addEventListener('scroll', scheduleOverscrollGlassUpdate, { passive: true });
+}
+
 function refreshPinnedGroupObserver(list) {
     if (pinObserverFrame) cancelAnimationFrame(pinObserverFrame);
 
@@ -166,6 +250,7 @@ function refreshPinnedGroupObserver(list) {
 
         list.dataset.ovoPinTracking = 'ready';
         groups.forEach(group => pinnedGroupObserver.observe(group));
+        scheduleOverscrollGlassUpdate();
     });
 }
 
@@ -174,6 +259,7 @@ function setupPinnedGroupTracking(list) {
     if (!screen) return;
 
     trackedContactsList = list;
+    setupOverscrollGlassTracking(list, screen);
     contactsScreenStateObserver?.disconnect();
     contactsScreenResizeObserver?.disconnect();
 

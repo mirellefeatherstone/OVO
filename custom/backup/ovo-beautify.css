@@ -4258,6 +4258,22 @@ img {
 }
 
 
+/*
+ * iOS Safari 在底部橡皮筋阶段会暂时报告超出最大值的 scrollTop。
+ * JS 只在这段越界距离内写入透明度；松手回到真实边界后立即清理。
+ */
+
+#contacts-screen
+#contacts-list[data-ovo-pin-tracking="ready"]
+> .ovo-contact-group
+> .ovo-contact-group-title[data-ovo-overscroll-glass="true"]::before {
+    animation: none !important;
+
+    opacity:
+        var(--ovo-contact-overscroll-glass-opacity, 0) !important;
+}
+
+
 /* 允许当前字母越过布局仍为展开高度的透明 Header 区域。 */
 
 #contacts-screen
