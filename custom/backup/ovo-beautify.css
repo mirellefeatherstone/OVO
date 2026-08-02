@@ -2622,6 +2622,34 @@ img {
     bottom: 0 !important;
 }
 
+/* 第二位及后续联系人：名字在当前基础上再上移 1px */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item
++ .profile-item
+> .profile-info
+> .profile-name {
+    top:
+        calc(
+            var(--contacts-list-name-y-shift)
+            - 1px
+        ) !important;
+}
+
+
+/* 第二位及后续联系人：分割线同步上移 1px */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item
++ .profile-item::after {
+    top: auto !important;
+    bottom: 1px !important;
+}
+
 /* =========================================================
    阻止点击穿透顶栏毛玻璃
 
@@ -4059,7 +4087,7 @@ img {
 
     background: var(--contacts-hairline-color, #b4b4b4);
 
-    opacity: 1;
+    opacity: 0.5;
     pointer-events: none;
 }
 
