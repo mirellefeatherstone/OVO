@@ -1,6 +1,7 @@
 const PATCH_LOADED_EVENT = 'ovo:custom-patch-loaded';
 const CONTACTS_GROUPED_EVENT = 'ovo:contacts-grouped';
 const CONTACTS_LIST_ID = 'contacts-list';
+const GROUP_CLASS = 'ovo-contact-group';
 const GROUP_TITLE_CLASS = 'ovo-contact-group-title';
 const INDEX_CLASS = 'ovo-contact-index';
 const INDEX_LETTER_CLASS = 'ovo-contact-index-letter';
@@ -8,6 +9,12 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 const INDEX_LETTERS = [...ALPHABET, '#'];
 const MAGNIFICATION_NEIGHBOURS = 2;
 const CONTACTS_PREVIEW_PARAM = 'ovoAzPreview';
+
+let pinnedGroupObserver = null;
+let contactsScreenStateObserver = null;
+let contactsScreenResizeObserver = null;
+let trackedContactsList = null;
+let pinObserverFrame = 0;
 
 function loadContactIndexPreviewStyles() {
     const params = new URLSearchParams(window.location.search);
@@ -88,7 +95,7 @@ function getOrderedLetters(groups) {
 }
 
 function createGroupTitle(letter) {
-    const title = document.createElement('li');
+    const title = document.createElement('div');
     title.id = `ovo-contact-group-${letter === '#' ? 'other' : letter.toLowerCase()}`;
     title.className = GROUP_TITLE_CLASS;
     title.dataset.letter = letter;
@@ -97,6 +104,95 @@ function createGroupTitle(letter) {
     // Structural DOM stays invisible unless the active custom CSS opts in.
     title.style.display = 'var(--ovo-contact-group-title-display, none)';
     return title;
+}
+
+function clearPinnedGroupState(list) {
+    list.removeAttribute('data-ovo-pin-tracking');
+    list.querySelectorAll(`.${GROUP_CLASS}`).forEach(group => {
+        delete group.dataset.ovoPinned;
+    });
+}
+
+function refreshPinnedGroupObserver(list) {
+    if (pinObserverFrame) cancelAnimationFrame(pinObserverFrame);
+
+    pinObserverFrame = requestAnimationFrame(() => {
+        pinObserverFrame = 0;
+        pinnedGroupObserver?.disconnect();
+        pinnedGroupObserver = null;
+        clearPinnedGroupState(list);
+
+        const screen = list.closest('#contacts-screen');
+        const groups = Array.from(list.querySelectorAll(`:scope > .${GROUP_CLASS}`));
+        const firstTitle = groups[0]?.querySelector(`.${GROUP_TITLE_CLASS}`);
+        if (!screen?.classList.contains('active') || !firstTitle || !screen.clientHeight) return;
+        if (typeof IntersectionObserver !== 'function') return;
+
+        const stickyTop = Number.parseFloat(getComputedStyle(firstTitle).top) || 0;
+        for (const group of groups) {
+            const title = group.querySelector(`.${GROUP_TITLE_CLASS}`);
+            if (!title) continue;
+
+            // Fade the incoming strip over the exact 20px collision distance:
+            // from touching the pinned strip to reaching the sticky edge.
+            const glassEnd = Math.max(
+                0,
+                getGroupFlowTop(list, title, screen) - stickyTop,
+            );
+            const glassStart = Math.max(0, glassEnd - title.offsetHeight);
+            title.style.setProperty('--ovo-contact-glass-start', `${glassStart}px`);
+            title.style.setProperty('--ovo-contact-glass-end', `${glassEnd}px`);
+        }
+
+        const observationLineHeight = 1;
+        // Half a pixel below the sticky edge avoids IntersectionObserver's
+        // edge-touch case, where the outgoing and incoming sections can both
+        // report intersecting at the exact shared boundary.
+        const observationTop = stickyTop + 0.5;
+        const bottomInset = Math.max(
+            0,
+            screen.clientHeight - observationTop - observationLineHeight,
+        );
+
+        pinnedGroupObserver = new IntersectionObserver(entries => {
+            for (const entry of entries) {
+                entry.target.dataset.ovoPinned = String(entry.isIntersecting);
+            }
+        }, {
+            root: screen,
+            rootMargin: `-${observationTop}px 0px -${bottomInset}px 0px`,
+            threshold: 0,
+        });
+
+        list.dataset.ovoPinTracking = 'ready';
+        groups.forEach(group => pinnedGroupObserver.observe(group));
+    });
+}
+
+function setupPinnedGroupTracking(list) {
+    const screen = list.closest('#contacts-screen');
+    if (!screen) return;
+
+    trackedContactsList = list;
+    contactsScreenStateObserver?.disconnect();
+    contactsScreenResizeObserver?.disconnect();
+
+    contactsScreenStateObserver = new MutationObserver(() => {
+        refreshPinnedGroupObserver(list);
+    });
+    contactsScreenStateObserver.observe(screen, {
+        attributes: true,
+        attributeFilter: ['class'],
+    });
+
+    if (typeof ResizeObserver === 'function') {
+        contactsScreenResizeObserver = new ResizeObserver(() => {
+            refreshPinnedGroupObserver(list);
+        });
+        contactsScreenResizeObserver.observe(screen);
+    }
+
+    refreshPinnedGroupObserver(list);
 }
 
 function triggerIndexHaptic() {
@@ -146,7 +242,7 @@ function clearIndexMagnification(index) {
 }
 
 function getGroupTitle(list, letter) {
-    return Array.from(list.children).find(child => (
+    return Array.from(list.querySelectorAll(`.${GROUP_TITLE_CLASS}`)).find(child => (
         child.classList.contains(GROUP_TITLE_CLASS)
         && child.dataset.letter === letter
     ));
@@ -166,13 +262,30 @@ function getContactsScrollContainer(list) {
 
     // Preserve a useful fallback while the screen is hidden or still laying
     // itself out and therefore reports no measurable scroll range yet.
-    return list.closest('.content')
-        || list.closest('#contacts-screen')
+    return list.closest('#contacts-screen')
+        || list.closest('.content')
         || document.scrollingElement;
 }
 
 function getGroupFlowTop(list, target, scrollContainer) {
     const containerBounds = scrollContainer.getBoundingClientRect();
+    const group = target.closest(`.${GROUP_CLASS}`);
+
+    // The section itself never becomes sticky, so its rectangle continues to
+    // expose the group's normal-flow position even while its title is pinned.
+    if (group && list.contains(group)) {
+        const groupStyle = getComputedStyle(group);
+        return (
+            scrollContainer.scrollTop
+            + group.getBoundingClientRect().top
+            - containerBounds.top
+            - scrollContainer.clientTop
+            + (Number.parseFloat(groupStyle.paddingTop) || 0)
+        );
+    }
+
+    // Backwards-compatible fallback for an older, still-flat list during the
+    // brief interval before the MutationObserver rebuilds it.
     const listBounds = list.getBoundingClientRect();
     const listStyle = getComputedStyle(list);
     let top = (
@@ -202,29 +315,25 @@ function getGroupFlowTop(list, target, scrollContainer) {
 
 function scrollGroupIntoPosition(list, target, behavior) {
     const scrollContainer = getContactsScrollContainer(list);
+    if (!scrollContainer) return;
+
+    const stickyTop = Number.parseFloat(getComputedStyle(target).top) || 0;
+    const requestedTop = getGroupFlowTop(list, target, scrollContainer) - stickyTop;
+    const maximumTop = Math.max(
+        0,
+        scrollContainer.scrollHeight - scrollContainer.clientHeight,
+    );
+    const destinationTop = Math.min(maximumTop, Math.max(0, requestedTop));
 
     // Repeated smooth scrollIntoView calls can get stuck at the bottom in
     // iOS Safari. During a drag, update the real contacts scroller directly
     // so reversing direction works immediately and cancels no queued motion.
-    if (behavior === 'instant' && scrollContainer) {
-        const stickyTop = Number.parseFloat(getComputedStyle(target).top) || 0;
-        const requestedTop = (
-            getGroupFlowTop(list, target, scrollContainer)
-            - stickyTop
-        );
-        const maximumTop = Math.max(
-            0,
-            scrollContainer.scrollHeight - scrollContainer.clientHeight,
-        );
-
-        scrollContainer.scrollTop = Math.min(
-            maximumTop,
-            Math.max(0, requestedTop),
-        );
+    if (behavior === 'instant') {
+        scrollContainer.scrollTop = destinationTop;
         return;
     }
 
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollContainer.scrollTo({ top: destinationTop, behavior: 'smooth' });
 }
 
 function navigateToIndexButton(list, index, button, behavior = 'instant') {
@@ -385,8 +494,8 @@ function createContactIndex(list, presentLetters) {
 }
 
 function groupContactList(list) {
-    const contactItems = Array.from(list.children).filter(child => (
-        child.classList.contains('profile-item')
+    const contactItems = Array.from(list.querySelectorAll('.profile-item')).filter(item => (
+        item.closest(`#${CONTACTS_LIST_ID}`) === list
     ));
 
     const groups = new Map();
@@ -403,17 +512,23 @@ function groupContactList(list) {
     const fragment = document.createDocumentFragment();
 
     for (const letter of letters) {
-        fragment.appendChild(createGroupTitle(letter));
+        const group = document.createElement('section');
+        group.className = GROUP_CLASS;
+        group.dataset.letter = letter;
+        group.appendChild(createGroupTitle(letter));
 
         const contacts = groups.get(letter).sort((left, right) => (
             pinyinCollator.compare(left.name, right.name)
         ));
-        for (const { contactItem } of contacts) fragment.appendChild(contactItem);
+        for (const { contactItem } of contacts) group.appendChild(contactItem);
+
+        fragment.appendChild(group);
     }
 
     list.replaceChildren(fragment);
     list.dataset.ovoContactsAz = 'ready';
     createContactIndex(list, letters);
+    if (trackedContactsList === list) refreshPinnedGroupObserver(list);
 
     list.dispatchEvent(new CustomEvent(CONTACTS_GROUPED_EVENT, {
         bubbles: true,
@@ -440,6 +555,7 @@ function setupContactsPatch() {
 
     groupContactList(list);
     observer.observe(list, { childList: true });
+    setupPinnedGroupTracking(list);
 }
 
 if (typeof document !== 'undefined') {

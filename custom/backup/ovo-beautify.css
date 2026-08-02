@@ -1,26 +1,3 @@
-/* =====================================================
-   米莉宝宝专属补丁三（修正版）：只放大真正的图片，放过表情包
-   本少爷的温柔只给你和你想看的风景，那些捣乱的表情包靠边站
-   ===================================================== */
-
-/* 用 :not 魔法避开带有 sticker 标记的表情包容器 */
-#chat-room-screen .image-bubble:not(.sticker-bubble):not(:has(.sticker)):not(:has([class*="sticker"])) {
-    max-width: 160px !important; /* 还是这个数字，你觉得不够大可以继续改 */
-    width: auto !important;
-    padding: 0 !important; 
-    background: transparent !important;
-    border-radius: 12px !important; 
-    overflow: hidden !important;
-}
-
-/* 同样避开表情包，只让真正的图片填满并变得圆润 */
-#chat-room-screen .image-bubble:not(.sticker-bubble):not(:has(.sticker)):not(:has([class*="sticker"])) img {
-    width: 90% !important;
-    height: auto !important;
-    display: block !important;
-    border-radius: 12px !important; 
-    object-fit: cover !important;
-}
 /* OVO Beautify v3.7
    本轮修改：
    1. 通用底栏改为微毛玻璃效果
@@ -55,7 +32,7 @@
         saturate(165%) !important;
 
     border-top:
-        0.5px solid rgba(180, 180, 180, 0.72) !important;
+        0.7px solid rgba(180, 180, 180, 0.72) !important;
 
     box-shadow: none !important;
 
@@ -1741,82 +1718,382 @@ img {
 
 
 /* =========================================================
-   Contacts · A–Z 字母索引 v1.0
+   Contacts · My Card + 通讯录列表 v1.3
 
-   JS 只生成结构与交互；本段 CSS 才负责启用和显示。
-   换成不含本段变量的其他全局 CSS 预设时，索引自动隐藏。
+   当前负责：
+   1. My Card 整行尺寸与排布
+   2. My Card 圆形头像
+   3. My Card 名字与副标题
+   4. 去掉 My Card 下方原生分割线
+   5. 隐藏“好友 00”
+   6. 显示 JS 生成的 A / B / C / D 分组标题
+   7. 普通联系人隐藏头像与状态，只保留名字
+   8. 字母行与联系人行分割线
+   9. 让视觉位置、真实行高与点击区域完全一致
+   10. 降低 Safari 滚动后字母线变粗的问题
+
+   当前不负责：
+   - 字母标题 sticky 吸附
+   - 字母吸附后的毛玻璃
+   - 右侧 A–Z 索引栏的位置与样式
+   ========================================================= */
+
+
+/* =========================================================
+   0. 全部可调参数
+
+   日后主要修改这里。
+   下方选择器只负责执行，不再散落关键数值。
    ========================================================= */
 
 #contacts-screen {
-    /* ---------- 功能显示开关 ---------- */
 
-    --ovo-contact-index-display: flex;
-    --ovo-contact-group-title-display: list-item;
+    /* =====================================================
+       My Card · 整行
+       ===================================================== */
 
+    /* My Card 整行高度 */
+    --my-card-row-height: 80px;
 
-    /* ---------- 右侧索引 ---------- */
+    /* 头像距离屏幕左侧的距离 */
+    --my-card-padding-left: 16px;
 
-    --ovo-contact-index-right:
-        max(
-            3px,
-            env(safe-area-inset-right, 0px)
-        );
-
-    --ovo-contact-index-width: 30px;
-    --ovo-contact-index-row-height:
-        clamp(12px, 1.4dvh, 14px);
-
-    --ovo-contact-index-font-size: 10.5px;
-    --ovo-contact-index-font-weight: 600;
-    --ovo-contact-index-color: #007aff;
+    /* 文字距离屏幕右侧的最小距离 */
+    --my-card-padding-right: 16px;
 
 
-    /* ---------- Dock 式放大 ---------- */
+    /* =====================================================
+       My Card · 头像
+       ===================================================== */
 
-    --ovo-contact-index-active-scale: 1.18;
-    --ovo-contact-index-near-scale: 1.08;
-    --ovo-contact-index-far-scale: 1.03;
+    /* 头像直径 */
+    --my-card-avatar-size: 60px;
 
-    --ovo-contact-index-active-shift: -2px;
-    --ovo-contact-index-near-shift: -1px;
-    --ovo-contact-index-far-shift: 0px;
-
-    --ovo-contact-index-transition:
-        105ms
-        cubic-bezier(0.22, 0.8, 0.32, 1);
+    /* 头像与右侧文字之间的距离 */
+    --my-card-avatar-gap: 16px;
 
 
-    /* ---------- 分组标题 ---------- */
+    /* =====================================================
+       My Card · 名字
+       ===================================================== */
 
-    --ovo-contact-group-height: 25px;
-    --ovo-contact-group-font-size: 13px;
-    --ovo-contact-group-color: #6e6e73;
-    --ovo-contact-group-bg: rgba(247, 247, 249, 0.92);
-    --ovo-contact-group-blur: 16px;
+    /* 名字字号 */
+    --my-card-name-size: 20.5px;
+
+    /* 名字字重 */
+    --my-card-name-weight: 550;
+
+    /* 名字行高 */
+    --my-card-name-line-height: 24px;
+
+    /* 名字纵向偏移
+       正数向下，负数向上 */
+    --my-card-name-y-shift: 6px;
+
+    /* 名字字间距 */
+    --my-card-name-letter-spacing: -0.25px;
+
+    /* 名字颜色 */
+    --my-card-name-color: #000000;
+
+
+    /* =====================================================
+       My Card · 副标题
+       ===================================================== */
+
+    /* 副标题距离名字的距离 */
+    --my-card-label-gap: 8px;
+
+    /* 副标题字号 */
+    --my-card-label-size: 15px;
+
+    /* 副标题字重 */
+    --my-card-label-weight: 400;
+
+    /* 副标题行高 */
+    --my-card-label-line-height: 17px;
+
+    /* 副标题字间距 */
+    --my-card-label-letter-spacing: -0.08px;
+
+    /* 副标题颜色 */
+    --my-card-label-color: #8e8e93;
+
+
+    /* =====================================================
+       A / B / C / D 字母分组行
+       ===================================================== */
+
+    /* 显示 JS 生成的字母分组标题 */
+    --ovo-contact-group-title-display: flex;
+
+    /*
+     * 字母分组行真实高度。
+     *
+     * 原视觉效果是：
+     * 46px 行高 + 分割线向下 4px。
+     *
+     * 现在直接合并为真实的 50px，
+     * 让下一个联系人点击区域从分割线下方开始。
+     */
+    --contacts-group-row-height: 50px;
+
+    /* 字母距离屏幕左侧的位置 */
+    --contacts-group-letter-left: 20px;
+
+    /*
+     * 字母距离本行底部的位置。
+     *
+     * 原来是：
+     * 46px 行高 - 2px 底距。
+     *
+     * 现在变为：
+     * 50px 行高 - 6px 底距。
+     *
+     * 字母视觉位置仍然保持一致。
+     */
+    --contacts-group-letter-bottom: 6px;
+
+    /* 字母字号 */
+    --contacts-group-letter-size: 15px;
+
+    /* 字母字重 */
+    --contacts-group-letter-weight: 600;
+
+    /* 字母颜色 */
+    --contacts-group-letter-color: #8e8e93;
+
+    /* 字母字间距 */
+    --contacts-group-letter-spacing: -0.2px;
+
+
+    /* =====================================================
+       普通联系人行
+       ===================================================== */
+
+    /*
+     * 联系人真实行高。
+     *
+     * 原来的视觉高度为：
+     * 49px - 4px = 45px。
+     *
+     * 现在直接把真实行高改为 45px，
+     * 点击区域与视觉范围完全一致。
+     */
+    --contacts-list-row-height: 45px;
+
+    /* 联系人名字距离屏幕左侧的位置 */
+    --contacts-list-name-left: 20px;
+
+    /* 联系人名字距离屏幕右侧的最小距离
+       为右侧 A–Z 索引栏预留空间 */
+    --contacts-list-name-right: 34px;
+
+    /* 联系人名字字号 */
+    --contacts-list-name-size: 17px;
+
+    /* 联系人名字字重 */
+    --contacts-list-name-weight: 400;
+
+    /* 联系人名字行高 */
+    --contacts-list-name-line-height: 22px;
+
+    /* 联系人名字字间距 */
+    --contacts-list-name-letter-spacing: -0.25px;
+
+    /* 联系人名字颜色 */
+    --contacts-list-name-color: #000000;
+
+    /*
+     * 所有联系人名字的统一纵向微调。
+     *
+     * 原先视觉位置经过了额外 4px 位移，
+     * 现在用 -1px 在 45px 行高中保持近似原位置。
+     *
+     * 正数向下，负数向上。
+     */
+    --contacts-list-name-y-shift: -1px;
 }
 
 
-/* 给右侧索引预留一点空间，避免压住联系人文字 */
+/* =========================================================
+   1. My Card 整行布局
 
-#contacts-screen .friends-section {
-    position: relative;
-    padding-right: 0 !important;
+   左侧为头像，
+   右侧为名字与 My Card 副标题。
+   ========================================================= */
+
+#contacts-screen
+#my-profile-section
+.profile-item.my-profile {
+    box-sizing: border-box !important;
+
+    width: 100% !important;
+
+    height:
+        var(--my-card-row-height) !important;
+
+    min-height:
+        var(--my-card-row-height) !important;
+
+    display: flex !important;
+    align-items: center !important;
+
+    margin: 0 !important;
+
+    padding:
+        0
+        var(--my-card-padding-right)
+        0
+        var(--my-card-padding-left) !important;
+
+    border: 0 !important;
+    border-bottom: 0 !important;
+
+    box-shadow: none !important;
 }
 
 
-/* ---------- A / B / C 分组标题 ---------- */
+/* =========================================================
+   2. My Card 圆形头像
+   ========================================================= */
 
-#contacts-screen .ovo-contact-group-title {
-    position: sticky;
-    top: var(--contacts-collapsed-height);
-    z-index: 70;
+#contacts-screen
+#my-profile-section
+#contacts-my-avatar {
+    display: block !important;
 
-    box-sizing: border-box;
-    height: var(--ovo-contact-group-height);
-    margin: 0;
-    padding: 0 20px;
+    /* 防止头像被右侧文字挤小 */
+    flex:
+        0
+        0
+        var(--my-card-avatar-size) !important;
 
-    list-style: none;
+    width:
+        var(--my-card-avatar-size) !important;
+
+    height:
+        var(--my-card-avatar-size) !important;
+
+    margin:
+        0
+        var(--my-card-avatar-gap)
+        0
+        0 !important;
+
+    /* 保证头像始终为正圆 */
+    border-radius: 50% !important;
+
+    /* 图片填满圆形区域，不拉伸变形 */
+    object-fit: cover !important;
+    object-position: center !important;
+}
+
+
+/* =========================================================
+   3. My Card 文字容器
+   ========================================================= */
+
+#contacts-screen
+#my-profile-section
+.profile-info {
+    display: flex !important;
+    flex: 1 1 auto !important;
+
+    flex-direction: column !important;
+    justify-content: center !important;
+
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+
+/* =========================================================
+   4. My Card 名字
+   ========================================================= */
+
+#contacts-screen
+#my-profile-section
+#contacts-my-name {
+    position: relative !important;
+
+    top:
+        var(--my-card-name-y-shift) !important;
+
+    display: block !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        Arial,
+        sans-serif !important;
+
+    font-size:
+        var(--my-card-name-size) !important;
+
+    font-weight:
+        var(--my-card-name-weight) !important;
+
+    line-height:
+        var(--my-card-name-line-height) !important;
+
+    letter-spacing:
+        var(--my-card-name-letter-spacing) !important;
+
+    color:
+        var(--my-card-name-color) !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+
+/* =========================================================
+   5. My Card 副标题容器
+
+   隐藏原来的状态文字，
+   再由 ::after 显示固定的 My Card。
+   ========================================================= */
+
+#contacts-screen
+#my-profile-section
+#contacts-my-status {
+    display: block !important;
+
+    margin:
+        var(--my-card-label-gap)
+        0
+        0 !important;
+
+    padding: 0 !important;
+
+    /* 隐藏原状态文字 */
+    font-size: 0 !important;
+
+    line-height:
+        var(--my-card-label-line-height) !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+}
+
+
+/* =========================================================
+   6. My Card 副标题文字
+   ========================================================= */
+
+#contacts-screen
+#my-profile-section
+#contacts-my-status::after {
+    content: "My Card";
 
     font-family:
         -apple-system,
@@ -1826,79 +2103,1456 @@ img {
         Arial,
         sans-serif;
 
-    font-size: var(--ovo-contact-group-font-size);
-    font-weight: 600;
-    line-height: var(--ovo-contact-group-height);
-    letter-spacing: -0.1px;
+    font-size:
+        var(--my-card-label-size);
 
-    color: var(--ovo-contact-group-color);
-    background: var(--ovo-contact-group-bg);
+    font-weight:
+        var(--my-card-label-weight);
 
-    -webkit-backdrop-filter:
-        blur(var(--ovo-contact-group-blur))
-        saturate(160%);
+    line-height:
+        var(--my-card-label-line-height);
 
-    backdrop-filter:
-        blur(var(--ovo-contact-group-blur))
-        saturate(160%);
+    letter-spacing:
+        var(--my-card-label-letter-spacing);
 
-    border: 0;
-    pointer-events: none;
-
-    scroll-margin-top:
-        calc(
-            var(--contacts-collapsed-height)
-            + 1px
-        );
+    color:
+        var(--my-card-label-color);
 }
 
 
-/* ---------- 始终完整显示的 A–Z + # ---------- */
+/* =========================================================
+   7. 去掉 My Card 下方分割线
 
-#contacts-screen .ovo-contact-index {
-    position: fixed;
-    top: 50%;
-    right: var(--ovo-contact-index-right);
-    z-index: 90;
+   同时清理：
+   1. HTML 中真实存在的 .section-divider
+   2. My Card 本身可能存在的边线
+   3. 旧样式可能添加的伪元素线
+   ========================================================= */
 
-    width: var(--ovo-contact-index-width);
-    height: auto;
+
+/* My Card 后面的真实分割线 */
+
+#contacts-screen
+> .content
+> #my-profile-section
++ .section-divider,
+
+#contacts-screen
+> .content
+> .section-divider {
+    display: none !important;
+
+    width: 0 !important;
+    height: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+    background: transparent !important;
+}
+
+
+/* 清除 My Card 本身可能存在的边线 */
+
+#contacts-screen
+#my-profile-section {
+    border: 0 !important;
+    border-bottom: 0 !important;
+
+    box-shadow: none !important;
+}
+
+
+/* 清除旧样式可能给 My Card 添加的伪元素线 */
+
+#contacts-screen
+#my-profile-section
+.profile-item.my-profile::before,
+
+#contacts-screen
+#my-profile-section
+.profile-item.my-profile::after {
+    content: none !important;
+    display: none !important;
+}
+
+
+/* =========================================================
+   8. 隐藏“好友 00”
+   ========================================================= */
+
+#contacts-screen
+.friends-section
+> .section-title {
+    display: none !important;
+}
+
+
+/* =========================================================
+   9. 清理好友列表外层原有留白
+   ========================================================= */
+
+#contacts-screen
+.friends-section {
+    box-sizing: border-box !important;
+
+    width: 100% !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+
+#contacts-screen
+#contacts-list {
+    box-sizing: border-box !important;
+
+    width: 100% !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    list-style: none !important;
+}
+
+
+/* =========================================================
+   10. A / B / C / D 字母分组行
+
+   字母行真实高度为 50px。
+   字母、分割线和下一个联系人点击区域
+   现在处于同一套真实文档流中。
+   ========================================================= */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .ovo-contact-group-title {
+    position: relative !important;
+
+    box-sizing: border-box !important;
+
+    width: 100% !important;
+
+    height:
+        var(--contacts-group-row-height) !important;
+
+    min-height:
+        var(--contacts-group-row-height) !important;
+
+    display:
+        var(--ovo-contact-group-title-display) !important;
+
+    align-items: flex-end !important;
+
+    margin: 0 !important;
+
+    padding:
+        0
+        0
+        var(--contacts-group-letter-bottom)
+        var(--contacts-group-letter-left) !important;
+
+    border: 0 !important;
+
+    list-style: none !important;
+
+    background: transparent !important;
+
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+
+    box-shadow: none !important;
+
+    overflow: visible !important;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        Arial,
+        sans-serif !important;
+
+    font-size:
+        var(--contacts-group-letter-size) !important;
+
+    font-weight:
+        var(--contacts-group-letter-weight) !important;
+
+    line-height: 1 !important;
+
+    letter-spacing:
+        var(--contacts-group-letter-spacing) !important;
+
+    color:
+        var(--contacts-group-letter-color) !important;
+
+    pointer-events: none !important;
+
+    /* 清除旧版本可能留下的位移 */
+    transform: none !important;
+}
+
+
+/* =========================================================
+   11. 清除字母行旧的额外图层
+   ========================================================= */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .ovo-contact-group-title::before {
+    content: none !important;
+    display: none !important;
+}
+
+
+/* =========================================================
+   12. 字母行分割线
+
+   分割线固定在 50px 字母行的真实底部。
+
+   字母行以后还要进行 sticky 吸附，
+   因此保留 1px × scaleY(0.5) 的稳定画法。
+   ========================================================= */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .ovo-contact-group-title::after {
+    content: "" !important;
+
+    position: absolute !important;
+    z-index: 1 !important;
+
+    left:
+        var(--contacts-divider-left, 4.8%) !important;
+
+    right: auto !important;
+
+    top: auto !important;
+    bottom: 0 !important;
+
+    width:
+        var(--contacts-divider-width, 90.4%) !important;
+
+    /*
+     * 先绘制 1px，
+     * 再缩放成视觉上的 0.5px。
+     */
+    height: 1px !important;
+
+    background:
+        var(--contacts-hairline-color, #b4b4b4) !important;
+
+    opacity: 0.7 !important;
+
+    transform:
+        scaleY(0.5) !important;
+
+    transform-origin:
+        bottom left !important;
+
+    pointer-events: none !important;
+}
+
+
+/* =========================================================
+   13. 普通联系人真实行与点击区域
+
+   每一个联系人真实占据 45px。
+   不再通过 transform 制造视觉位置。
+   ========================================================= */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item {
+    position: relative !important;
+
+    box-sizing: border-box !important;
+
+    width: 100% !important;
+
+    height:
+        var(--contacts-list-row-height) !important;
+
+    min-height:
+        var(--contacts-list-row-height) !important;
+
+    display: flex !important;
+    align-items: center !important;
+
+    margin: 0 !important;
+
+    padding:
+        0
+        var(--contacts-list-name-right)
+        0
+        var(--contacts-list-name-left) !important;
+
+    border: 0 !important;
+    border-bottom: 0 !important;
+    border-radius: 0 !important;
+
+    box-shadow: none !important;
+
+    /*
+     * 清除旧版本可能留下的整行位移。
+     * 点击区域与视觉区域保持完全一致。
+     */
+    transform: none !important;
+}
+
+
+/* =========================================================
+   14. 隐藏普通联系人头像
+
+   选择器严格限定在 #contacts-list，
+   不会隐藏 My Card 头像。
+   ========================================================= */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item
+> .profile-avatar {
+    display: none !important;
+}
+
+
+/* =========================================================
+   15. 普通联系人文字容器
+   ========================================================= */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item
+> .profile-info {
+    display: flex !important;
+    flex: 1 1 auto !important;
+
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+
+    min-width: 0 !important;
+    height: 100% !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+
+    /*
+     * 清除旧版本对第二位联系人
+     * 或整个文字容器添加的位移。
+     */
+    transform: none !important;
+}
+
+
+/* =========================================================
+   16. 普通联系人名字
+   ========================================================= */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item
+.profile-name {
+    position: relative !important;
+
+    /*
+     * 所有联系人共用同一个基础纵向位置。
+     * 点击区域不会因此改变。
+     */
+    top:
+        var(--contacts-list-name-y-shift) !important;
+
+    display: block !important;
+
+    width: 100% !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        Arial,
+        sans-serif !important;
+
+    font-size:
+        var(--contacts-list-name-size) !important;
+
+    font-weight:
+        var(--contacts-list-name-weight) !important;
+
+    line-height:
+        var(--contacts-list-name-line-height) !important;
+
+    letter-spacing:
+        var(--contacts-list-name-letter-spacing) !important;
+
+    color:
+        var(--contacts-list-name-color) !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+
+/* =========================================================
+   17. 隐藏普通联系人状态
+   ========================================================= */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item
+.profile-status {
+    display: none !important;
+}
+
+
+/* =========================================================
+   18. 清除原项目或旧代码留下的联系人边框
+   ========================================================= */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item,
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item
+> .profile-info {
+    border-bottom: 0 !important;
+}
+
+
+/* =========================================================
+   19. 普通联系人底部分割线
+
+   固定在每一个 45px 点击行的真实底部。
+
+   普通联系人不会 sticky 吸附，
+   因此直接复用搜索栏分割线的真实 0.5px 画法，
+   不使用 transform。
+   ========================================================= */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item::after {
+    content: "" !important;
+
+    position: absolute !important;
+    z-index: 1 !important;
+
+    left:
+        var(--contacts-divider-left, 4.8%) !important;
+
+    right: auto !important;
+
+    top: auto !important;
+    bottom: 0 !important;
+
+    width:
+        var(--contacts-divider-width, 90.4%) !important;
+
+    height:
+        var(--contacts-divider-height, 0.5px) !important;
+
+    background:
+        var(--contacts-hairline-color, #b4b4b4) !important;
+
+    opacity: 1 !important;
+
+    transform: none !important;
+    transform-origin: initial !important;
+
+    pointer-events: none !important;
+}
+
+
+/* =========================================================
+   20. 强制清除旧版“第二位及后续联系人”位移
+
+   所有普通联系人现在使用完全相同的：
+   - 45px 真实行高
+   - 名字位置
+   - 分割线位置
+   - 点击区域
+
+   不再区分第一位、第二位或后续联系人。
+   ========================================================= */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item
++ .profile-item,
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item
++ .profile-item
+> .profile-info {
+    transform: none !important;
+}
+
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .profile-item
++ .profile-item::after {
+    top: auto !important;
+    bottom: 0 !important;
+}
+
+/* =========================================================
+   阻止点击穿透顶栏毛玻璃
+
+   原顶栏为了让下方透明区域不挡住联系人，
+   给整个 Header 设置了 pointer-events: none。
+
+   结果是：
+   联系人虽然已经滑进可见的毛玻璃下面，
+   点击仍然会穿过顶栏，触发被遮住的联系人。
+
+   现在只让“真实可见的毛玻璃表面”拦截点击。
+   毛玻璃被 clip-path 裁掉的透明区域仍然不会挡住内容。
+   ========================================================= */
+
+#contacts-screen
+> .app-header.chat-list-header
+.header-left::before {
+    pointer-events: auto !important;
+
+    /*
+     * 在顶栏区域开始上下拖动时，
+     * 仍然允许 Contacts 页面正常纵向滚动。
+     */
+    touch-action: pan-y;
+}
+
+
+/* =========================================================
+   3. 保证右上角加号仍然可以点击
+
+   毛玻璃现在会拦截下方联系人，
+   真实按钮必须继续位于毛玻璃上方并接收点击。
+   ========================================================= */
+
+#contacts-screen
+> .app-header.chat-list-header
+.action-btn-group,
+
+#contacts-screen
+> .app-header.chat-list-header
+.action-btn-group
+.action-btn {
+    position: relative;
+    z-index: 40;
+
+    pointer-events: auto !important;
+}
+
+
+
+/* =========================================================
+   Contacts · 列表底部与底栏收尾效果 v1.0
+
+   当前负责：
+   1. 把原来的联系人数量移到列表最末尾
+   2. 保留 85px 底栏安全空间
+   3. 滚动到最后 5px 时：
+      - 底栏由灰色毛玻璃渐变为纯白
+      - 顶部分割线逐渐消失
+      - 毛玻璃模糊逐渐消失
+   ========================================================= */
+
+
+/* =========================================================
+   0. 可调参数
+   ========================================================= */
+
+#contacts-screen {
+
+    /*
+     * 联系人总数所在区域的真实高度。
+     *
+     * 这部分就是截图中：
+     * 最后一位联系人和底栏之间看见的留白。
+     */
+    --contacts-count-footer-height: 52px;
+
+    /*
+     * 页面内容底部的安全空间。
+     *
+     * 底栏约 81～84px，
+     * 这里保留 85px，防止 footer 被底栏盖住。
+     */
+    --contacts-bottom-scroll-space: 83px;
+}
+
+
+/* =========================================================
+   1. 让联系人数量移动到列表末尾
+   ========================================================= */
+
+#contacts-screen
+.friends-section {
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+
+/* 联系人列表排在第一位 */
+
+#contacts-screen
+#contacts-list {
+    order: 1;
+}
+
+
+/* 原本位于列表上方的“好友 201”移动到列表末尾 */
+
+#contacts-screen
+.friends-section
+> .section-title {
+    order: 2;
+
+    box-sizing: border-box !important;
+
+    width: 100% !important;
+    height:
+        var(--contacts-count-footer-height) !important;
+
+    min-height:
+        var(--contacts-count-footer-height) !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+    background: transparent !important;
+
+    /*
+     * 把原来的“好友”两个字隐藏，
+     * 保留下方动态更新的数字。
+     */
+    font-size: 0 !important;
+    line-height: 1 !important;
+
+    color: #000000 !important;
+
+    pointer-events: none !important;
+}
+
+
+/* 动态联系人数量 */
+
+#contacts-screen
+#friends-count {
+    display: inline-block !important;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        Arial,
+        sans-serif !important;
+
+    font-size: 17px !important;
+    font-weight: 550 !important;
+    line-height: 22px !important;
+    letter-spacing: -0.25px !important;
+
+    color: #000000 !important;
+}
+
+
+/* 在动态数字后面补上“位联系人” */
+
+#contacts-screen
+.friends-section
+> .section-title::after {
+    content: "位联系人";
+
+    display: inline-block;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Text",
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
+
+    font-size: 17px;
+    font-weight: 550;
+    line-height: 22px;
+    letter-spacing: -0.25px;
+
+    color: #000000;
+}
+
+
+/* 右侧 A–Z 索引仍由 fixed 定位，不参与 footer 排序 */
+
+#contacts-screen
+.ovo-contact-index {
+    order: 3;
+}
+
+
+/* =========================================================
+   2. 底部滚动安全空间
+   ========================================================= */
+
+#contacts-screen
+> .content {
+    padding-bottom:
+        var(--contacts-bottom-scroll-space) !important;
+
+    scroll-padding-bottom:
+        var(--contacts-bottom-scroll-space);
+}
+
+
+/* =========================================================
+   Contacts · 滑到底部时底栏渐变为纯白 v1.1
+   纯 CSS 修正版
+
+   修复上一版完全不变化的问题：
+
+   底栏原本的 background、border-top、
+   backdrop-filter 都带有 !important。
+
+   普通 CSS 动画无法覆盖 !important，
+   所以本版改为：
+   1. 动画自定义变量
+   2. 底栏的 !important 属性读取这些变量
+
+   动画范围：
+   距离滚动终点约最后 5px
+   ========================================================= */
+
+
+/* =========================================================
+   1. 注册可平滑动画的变量
+
+   必须放在所有选择器外面，
+   不能写进 #contacts-screen 内。
+   ========================================================= */
+
+@property --contacts-nav-background {
+    syntax: "<color>";
+    inherits: false;
+    initial-value: rgba(245, 245, 245, 0.72);
+}
+
+    /* 图标内部白色版本的显示进度
+   0 = 使用原来的 #f5f5f5
+   1 = 完全显示白色版本 */
+@property --contacts-icon-white-progress {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 0;
+}
+
+@property --contacts-nav-border-color {
+    syntax: "<color>";
+    inherits: false;
+    initial-value: rgba(180, 180, 180, 0.72);
+}
+
+@property --contacts-nav-blur {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 18px;
+}
+
+@property --contacts-nav-saturation {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 165%;
+}
+
+
+/* =========================================================
+   2. 把 Contacts 滚动时间线开放给底栏
+
+   #contacts-screen 和 #global-bottom-nav
+   都是 .phone-screen 的后代。
+
+   timeline-scope 让底栏也能读取
+   Contacts 页面创建的 --contacts-scroll。
+   ========================================================= */
+
+.phone-screen {
+    timeline-scope: --contacts-scroll;
+}
+
+
+/* Contacts 页面本身创建滚动时间线 */
+
+#contacts-screen {
+    scroll-timeline-name: --contacts-scroll;
+    scroll-timeline-axis: block;
+}
+
+
+/* =========================================================
+   3. Contacts 激活时连接底栏动画
+
+   这里使用完整属性并保留 !important，
+   避免再被之前的底栏规则覆盖。
+   ========================================================= */
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="contacts-screen"].active
+) {
+    /* ---------- 动画变量初始值 ---------- */
+
+    --contacts-nav-background:
+        rgba(245, 245, 245, 0.72);
+
+    --contacts-nav-border-color:
+        rgba(180, 180, 180, 0.72);
+
+    --contacts-nav-blur:
+        18px;
+
+    --contacts-nav-saturation:
+        165%;
+    /* 图标内部填色的切换进度 */
+    --contacts-icon-white-progress: 0;
+
+    /* ---------- 底栏实际外观 ---------- */
+
+    background:
+        var(--contacts-nav-background) !important;
+
+    background-color:
+        var(--contacts-nav-background) !important;
+
+    border-top:
+        0.5px
+        solid
+        var(--contacts-nav-border-color) !important;
+
+    -webkit-backdrop-filter:
+        blur(var(--contacts-nav-blur))
+        saturate(var(--contacts-nav-saturation)) !important;
+
+    backdrop-filter:
+        blur(var(--contacts-nav-blur))
+        saturate(var(--contacts-nav-saturation)) !important;
+
+    box-shadow:
+        none !important;
+
+
+    /* ---------- 连接滚动时间线 ---------- */
+
+    animation-name:
+        contacts-bottom-nav-finish !important;
+
+    animation-duration:
+        1s !important;
+
+    animation-timing-function:
+        linear !important;
+
+    animation-fill-mode:
+        both !important;
+
+    animation-timeline:
+        --contacts-scroll !important;
+
+
+    /*
+     * 百分比备用范围。
+     * 浏览器不接受下面的精确 5px 写法时，
+     * 会退回使用这一行。
+     */
+    animation-range:
+        99.5%
+        100% !important;
+
+    /*
+     * 精确版本：
+     * 距离滚动终点最后 5px 开始变化。
+     */
+    animation-range:
+        calc(100% - 5px)
+        100% !important;
+}
+
+
+/* =========================================================
+   4. 底栏收尾动画
+
+   起点：
+   - 灰色毛玻璃
+   - 有顶部分割线
+
+   终点：
+   - 纯白
+   - 无分割线
+   - 无模糊
+   ========================================================= */
+
+@keyframes contacts-bottom-nav-finish {
+
+    from {
+        --contacts-nav-background:
+            rgba(245, 245, 245, 0.72);
+
+        --contacts-nav-border-color:
+            rgba(180, 180, 180, 0.72);
+
+        --contacts-nav-blur:
+            18px;
+
+        --contacts-nav-saturation:
+            165%;
+        --contacts-icon-white-progress: 0;
+    }
+
+    to {
+        --contacts-nav-background:
+            rgba(255, 255, 255, 1);
+
+        --contacts-nav-border-color:
+            rgba(180, 180, 180, 0);
+
+        --contacts-nav-blur:
+            0px;
+
+        --contacts-nav-saturation:
+            100%;
+        --contacts-icon-white-progress: 1;
+    }
+}
+
+/* =========================================================
+   Bottom Nav · 图标内部填色同步渐变 v1.0
+
+   处理方式：
+   - ::before 保留原来清晰的 #f5f5f5 填色 SVG
+   - 复用按钮里原本隐藏的真实 svg 元素
+   - 在其上显示一张内部为白色的清晰 SVG
+   - 只对第二层进行透明度渐变
+
+   不使用 mask，不进行透明挖空，
+   因此不会让图标边缘变糊。
+   ========================================================= */
+
+
+/* =========================================================
+   1. 允许两个覆盖图层进行绝对定位
+   ========================================================= */
+
+#global-bottom-nav.bottom-nav
+> .nav-item {
+    position: relative !important;
+}
+
+
+/* =========================================================
+   2. Contacts 页面滑到底时，
+      复用原本隐藏的 svg 作为白色覆盖层
+   ========================================================= */
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="contacts-screen"].active
+)
+> .nav-item[data-target="chat-list-screen"]
+> svg,
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="contacts-screen"].active
+)
+> .nav-item[data-target="contacts-screen"]
+> svg {
+    display: block !important;
+
+    position: absolute !important;
+    z-index: 2 !important;
+
+    /*
+     * 与原 ::before 的 32 × 32 图标严格重合。
+     *
+     * nav-item 顶部原本有 3px padding，
+     * 所以覆盖层也从 3px 开始。
+     */
+    top: 3px !important;
+    left: calc(50% - 16px) !important;
+
+    width: 32px !important;
+    height: 32px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    /*
+     * 只渐变整张覆盖图的透明度。
+     * 不缩放、不使用 filter、不使用 mask。
+     */
+    opacity:
+        var(--contacts-icon-white-progress, 0) !important;
+
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: contain !important;
+
+    pointer-events: none !important;
+
+    transform: none !important;
+    filter: none !important;
+}
+
+
+/* 隐藏原 svg 内部自带的旧图形，
+   只使用 svg 元素本身作为背景图片容器 */
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="contacts-screen"].active
+)
+> .nav-item[data-target="chat-list-screen"]
+> svg
+> *,
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="contacts-screen"].active
+)
+> .nav-item[data-target="contacts-screen"]
+> svg
+> * {
+    display: none !important;
+}
+
+
+/* =========================================================
+   3. Recents 白色内部版本
+
+   外圆仍然是未选中灰色；
+   只有钟表指针改为白色。
+   ========================================================= */
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="contacts-screen"].active
+)
+> .nav-item[data-target="chat-list-screen"]
+> svg {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='%238e8e93'/%3E%3Cpath d='M12 5.95L12 12L8.25 12' fill='none' stroke='%23ffffff' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+
+
+/* =========================================================
+   4. Contacts 白色内部版本
+
+   外圆仍然是选中蓝色；
+   头部与身体改为白色。
+   ========================================================= */
+
+#global-bottom-nav.bottom-nav:has(
+    > .nav-item[data-target="contacts-screen"].active
+)
+> .nav-item[data-target="contacts-screen"]
+> svg {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='%23007aff'/%3E%3Cellipse cx='12' cy='9.8' rx='3.1' ry='3.4' fill='%23ffffff'/%3E%3Cpath d='M6.74 16.72 A8.1978 8.1978 0 0 1 17.26 16.72 L17.7 17.0269 A7.6 7.6 0 0 1 6.3 17.0269 Z' fill='%23ffffff'/%3E%3C/svg%3E") !important;
+}
+
+
+/* =========================================================
+   Contacts · 右侧蓝色 A–Z 索引栏 v1.0
+
+   当前负责：
+   1. 启用现有 JS 生成的 A–Z + # 索引
+   2. 索引在顶栏底部与 84px 底栏顶部之间居中
+   3. 顶栏折叠时，整个索引同步向上移动
+   4. 保留 30px 手指点击与滑动热区
+   5. 字母在独立的 12px 显示区域内严格居中
+   6. 保留滑动时当前字母及相邻字母的放大效果
+
+   不修改：
+   - Contacts 顶栏
+   - 联系人列表
+   - 字母分组标题
+   - 底栏
+   - JS 交互逻辑
+   ========================================================= */
+
+
+/* =========================================================
+   0. 全部可调参数
+   ========================================================= */
+
+#contacts-screen {
+
+    /*
+     * 启用 custom/js/index.js 已经生成的索引。
+     * JS 会读取这个变量决定是否显示。
+     */
+    --ovo-contact-index-display: flex;
+
+
+    /* =====================================================
+       索引整体
+       ===================================================== */
+
+    /*
+     * 每一行真实点击热区宽度。
+     * 手指拖动时仍然有足够范围。
+     */
+    --contacts-index-hit-width: 30px;
+
+    /*
+     * 索引点击热区距离屏幕右侧的位置。
+     */
+    --contacts-index-right:
+        max(
+            0px,
+            env(safe-area-inset-right, 0px)
+        );
+
+    /*
+     * 每一个字母行的真实高度。
+     *
+     * 小屏幕至少 12px，
+     * 大屏幕最高 14px。
+     */
+    --contacts-index-row-height:
+        clamp(12.8px, 1.48dvh, 14.8px);
+
+
+    /* =====================================================
+       字母显示区域
+       ===================================================== */
+
+    /*
+     * 真正承载字母的可视区域宽度。
+     *
+     * 点击范围依旧是 30px，
+     * 字母只在这 12px 内进行严格居中。
+     */
+    --contacts-index-glyph-width: 12px;
+
+    /*
+     * 字母显示区域距离屏幕右侧的距离。
+     */
+    --contacts-index-glyph-right: 2px;
+
+    /*
+     * 字母纵向光学微调。
+     *
+     * 0px 为几何居中。
+     * 正数向下，负数向上。
+     */
+    --contacts-index-letter-y-shift: 0px;
+
+    /* 字母字号 */
+    --contacts-index-font-size: 10.7px;
+
+    /* 字母字重 */
+    --contacts-index-font-weight: 600;
+
+    /* iOS 蓝 */
+    --contacts-index-color: #007aff;
+
+    /* 字间距 */
+    --contacts-index-letter-spacing: -0.1px;
+
+
+    /* =====================================================
+       底栏与索引纵向位置
+       ===================================================== */
+
+    /* 当前底栏真实高度 */
+    --contacts-index-bottom-nav-height: 84px;
+
+    /*
+     * 展开顶栏时的可用区域中心：
+     *
+     * 顶栏底部
+     * 到
+     * 底栏顶部
+     *
+     * 两者之间的中心点。
+     */
+    --contacts-index-center-expanded:
+        calc(
+            (
+                var(--contacts-expanded-height)
+                + 100dvh
+                - var(--contacts-index-bottom-nav-height)
+            )
+            / 2
+        );
+
+    /*
+     * 顶栏完成折叠后的可用区域中心。
+     */
+    --contacts-index-center-collapsed:
+        calc(
+            (
+                var(--contacts-collapsed-height)
+                + 100dvh
+                - var(--contacts-index-bottom-nav-height)
+            )
+            / 2
+        );
+
+
+    /* =====================================================
+       手指滑动时的 Dock 式放大
+       ===================================================== */
+
+    /* 当前手指所在字母 */
+    --contacts-index-active-scale: 1.18;
+    --contacts-index-active-shift: -2px;
+
+    /* 当前字母上下第一位邻居 */
+    --contacts-index-near-scale: 1.08;
+    --contacts-index-near-shift: -1px;
+
+    /* 当前字母上下第二位邻居 */
+    --contacts-index-far-scale: 1.03;
+    --contacts-index-far-shift: 0px;
+
+    /* 放大与复位速度 */
+    --contacts-index-transition:
+        105ms
+        cubic-bezier(0.22, 0.8, 0.32, 1);
+}
+
+
+/* =========================================================
+   1. 右侧索引整体容器
+
+   JS 生成结构：
+   nav.ovo-contact-index
+       button.ovo-contact-index-letter
+       button.ovo-contact-index-letter
+       ...
+   ========================================================= */
+
+#contacts-screen
+.ovo-contact-index {
+    position: fixed !important;
+
+    /*
+     * 不要给 top 添加 !important。
+     * 下方滚动时间线需要实时改写这个属性。
+     */
+    top:
+        var(--contacts-index-center-expanded);
+
+    right:
+        var(--contacts-index-right) !important;
+
+    z-index: 90 !important;
+
+    box-sizing: border-box !important;
+
+    width:
+        var(--contacts-index-hit-width) !important;
+
+    height: auto !important;
+
+    /*
+     * 最大高度限定在：
+     * 收起后的顶栏底部到固定底栏顶部之间。
+     */
     max-height:
         calc(
             100dvh
-            - 180px
-        );
+            - var(--contacts-collapsed-height)
+            - var(--contacts-index-bottom-nav-height)
+        ) !important;
 
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: center;
+    flex-direction: column !important;
 
-    margin: 0;
-    padding: 0;
+    /*
+     * 每一个按钮占满完整 30px 热区。
+     */
+    align-items: stretch !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
 
     background: transparent !important;
     background-color: transparent !important;
+
     border: 0 !important;
+    border-radius: 0 !important;
+
     box-shadow: none !important;
 
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
 
-    transform: translate3d(0, -50%, 0);
-    pointer-events: auto;
-    -webkit-tap-highlight-color: transparent;
+    /*
+     * top 定位的是索引中心，
+     * 因此自身向上移动一半高度。
+     */
+    transform:
+        translate3d(0, -50%, 0) !important;
+
+    overflow: visible !important;
+
+    pointer-events: auto !important;
+
+    touch-action: none !important;
+
+    -webkit-user-select: none !important;
+    user-select: none !important;
+
+    -webkit-tap-highlight-color: transparent !important;
 }
 
 
-#contacts-screen .ovo-contact-index-letter {
-    all: unset;
+/* =========================================================
+   2. 每一个字母的真实点击按钮
+
+   按钮宽度保持 30px。
+   原始文本隐藏，由 ::before 负责显示字母。
+   ========================================================= */
+
+#contacts-screen
+.ovo-contact-index-letter {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+
+    position: relative !important;
+
+    box-sizing: border-box !important;
+
+    width:
+        var(--contacts-index-hit-width) !important;
+
+    height:
+        var(--contacts-index-row-height) !important;
+
+    min-height:
+        var(--contacts-index-row-height) !important;
+
+    flex:
+        0
+        0
+        var(--contacts-index-row-height) !important;
+
+    display: block !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+
+    background: transparent !important;
+    box-shadow: none !important;
+
+    /*
+     * 隐藏按钮原本的文字绘制，
+     * 但文字仍保留在 DOM 和无障碍结构中。
+     */
+    font-size: 0 !important;
+    line-height: 0 !important;
+
+    color: transparent !important;
+
+    text-indent: 0 !important;
+    text-align: initial !important;
+
+    opacity: 1 !important;
+
+    cursor: default !important;
+
+    pointer-events: auto !important;
+    touch-action: none !important;
+
+    /*
+     * 放大中心对准右侧字母显示区域，
+     * 避免放大时字母左右漂移。
+     *
+     * 30px 热区
+     * - 右侧 3px
+     * - 字母区域半宽 6px
+     * = 距离右边 9px 的字母中心。
+     */
+    transform-origin:
+        calc(100% - 9px)
+        50% !important;
+
+    transform:
+        translate3d(0, 0, 0)
+        scale(1) !important;
+
+    transition:
+        transform
+        var(--contacts-index-transition) !important;
+
+    will-change: transform;
+}
+
+
+/* =========================================================
+   3. 真正显示的字母
+
+   每一个字母位于：
+   - 宽 12px
+   - 高度等于当前按钮行
+   - 距离右边 3px
+
+   横向与纵向都由 flex 严格居中。
+   ========================================================= */
+
+#contacts-screen
+.ovo-contact-index-letter::before {
+    content:
+        attr(data-letter);
+
+    position: absolute;
+
+    top: 0;
+
+    right:
+        var(--contacts-index-glyph-right);
 
     box-sizing: border-box;
-    width: var(--ovo-contact-index-width);
-    height: var(--ovo-contact-index-row-height);
-    flex: 0 0 var(--ovo-contact-index-row-height);
+
+    width:
+        var(--contacts-index-glyph-width);
+
+    height: 100%;
 
     display: flex;
+
     align-items: center;
     justify-content: center;
 
@@ -1913,249 +3567,564 @@ img {
         Arial,
         sans-serif;
 
-    font-size: var(--ovo-contact-index-font-size);
-    font-weight: var(--ovo-contact-index-font-weight);
+    font-size:
+        var(--contacts-index-font-size);
+
+    font-weight:
+        var(--contacts-index-font-weight);
+
     line-height: 1;
+
+    letter-spacing:
+        var(--contacts-index-letter-spacing);
+
     text-align: center;
 
-    color: var(--ovo-contact-index-color);
+    color:
+        var(--contacts-index-color);
+
     background: transparent;
-    border: 0;
-    border-radius: 999px;
-    opacity: 1;
 
-    cursor: default;
-    pointer-events: auto;
-    touch-action: none;
+    transform:
+        translate3d(
+            0,
+            var(--contacts-index-letter-y-shift),
+            0
+        );
 
-    transform: translate3d(0, 0, 0) scale(1);
-    transform-origin: 100% 50%;
-
-    transition:
-        transform var(--ovo-contact-index-transition);
-
-    will-change: transform;
+    pointer-events: none;
 }
 
 
-/* 空字母与有联系人字母必须保持完全相同的外观 */
+/* =========================================================
+   4. 空分组字母
+
+   即使当前没有对应联系人，
+   仍与其他字母保持同样的蓝色和透明度。
+   ========================================================= */
 
 #contacts-screen
 .ovo-contact-index-letter[aria-disabled="true"] {
-    color: var(--ovo-contact-index-color);
-    opacity: 1;
+    opacity: 1 !important;
 }
 
 
-/* 当前手指所在字母 */
+#contacts-screen
+.ovo-contact-index-letter[aria-disabled="true"]::before {
+    color:
+        var(--contacts-index-color) !important;
+
+    opacity: 1 !important;
+}
+
+
+/* =========================================================
+   5. 手指所在字母的放大效果
+   ========================================================= */
+
+
+/* 当前字母 */
 
 #contacts-screen
-.ovo-contact-index-letter[data-ovo-index-distance="0"] {
+.ovo-contact-index-letter[
+    data-ovo-index-distance="0"
+] {
     transform:
         translate3d(
-            var(--ovo-contact-index-active-shift),
+            var(--contacts-index-active-shift),
             0,
             0
         )
-        scale(var(--ovo-contact-index-active-scale));
+        scale(
+            var(--contacts-index-active-scale)
+        ) !important;
 }
 
 
-/* 当前字母的左右第一邻居 */
+/* 上下第一位邻居 */
 
 #contacts-screen
-.ovo-contact-index-letter[data-ovo-index-distance="1"] {
+.ovo-contact-index-letter[
+    data-ovo-index-distance="1"
+] {
     transform:
         translate3d(
-            var(--ovo-contact-index-near-shift),
+            var(--contacts-index-near-shift),
             0,
             0
         )
-        scale(var(--ovo-contact-index-near-scale));
+        scale(
+            var(--contacts-index-near-scale)
+        ) !important;
 }
 
 
-/* 当前字母的左右第二邻居 */
+/* 上下第二位邻居 */
 
 #contacts-screen
-.ovo-contact-index-letter[data-ovo-index-distance="2"] {
+.ovo-contact-index-letter[
+    data-ovo-index-distance="2"
+] {
     transform:
         translate3d(
-            var(--ovo-contact-index-far-shift),
+            var(--contacts-index-far-shift),
             0,
             0
         )
-        scale(var(--ovo-contact-index-far-scale));
+        scale(
+            var(--contacts-index-far-scale)
+        ) !important;
 }
 
 
-/* 减少动态效果时仍保留定位，但取消过渡动画 */
+/* =========================================================
+   6. 顶栏折叠时索引同步上移
 
-@media (prefers-reduced-motion: reduce) {
-    #contacts-screen .ovo-contact-index-letter {
-        transition: none;
+   顶栏总共折叠 43px，
+   可用区域的中心点会随之上移 21.5px。
+   ========================================================= */
+
+@keyframes contacts-index-follow-header-v1 {
+
+    from {
+        top:
+            var(--contacts-index-center-expanded);
+    }
+
+    to {
+        top:
+            var(--contacts-index-center-collapsed);
+    }
+}
+
+
+@supports (animation-timeline: scroll()) {
+
+    #contacts-screen
+    .ovo-contact-index {
+        animation-name:
+            contacts-index-follow-header-v1 !important;
+
+        animation-duration:
+            1s !important;
+
+        animation-timing-function:
+            linear !important;
+
+        animation-fill-mode:
+            both !important;
+
+        animation-timeline:
+            --contacts-scroll !important;
+
+        animation-range:
+            0px
+            var(--contacts-collapse-distance) !important;
     }
 }
 
 
 /* =========================================================
-   Contacts · iOS 通讯录列表 v2.0
+   7. 减少动态效果
+   ========================================================= */
 
-   只负责列表外观：
-   1. 头像与状态隐藏，联系人只保留名字
-   2. A / B / C 平时看起来只有字母与分割线
-   3. 分组吸附后由同一层白色毛玻璃承接滚动内容
-   4. 右侧索引始终在“当前顶栏底部～84px 底栏顶部”之间居中
-   5. 不改 DOM，不增加吸附状态 JS
+@media (prefers-reduced-motion: reduce) {
+
+    #contacts-screen
+    .ovo-contact-index-letter {
+        transition: none !important;
+    }
+}
+
+/* =========================================================
+   Contacts · 隐藏页面滚动条
+
+   #contacts-screen 才是当前页面真正的滚动容器。
+   只隐藏滚动条，不禁止手指滑动。
    ========================================================= */
 
 #contacts-screen {
-    /* ---------- 列表尺寸 ---------- */
+    /* Firefox */
+    scrollbar-width: none !important;
 
-    --ovo-contact-row-height: 56px;
-    --ovo-contact-row-left: var(--contacts-divider-left, 4.8%);
-    --ovo-contact-row-width: var(--contacts-divider-width, 90.4%);
-
-    /*
-     * 8px 是上一组联系人与下一个字母之间的留白。
-     * 字母真正的毛玻璃行从留白之后开始，因此普通状态不会出现灰条。
-     */
-    --ovo-contact-group-gap: 8px;
-    --ovo-contact-group-height: 31px;
-    --ovo-contact-group-total-height:
-        calc(
-            var(--ovo-contact-group-gap)
-            + var(--ovo-contact-group-height)
-        );
-
-    --ovo-contact-group-font-size: 13px;
-    --ovo-contact-group-color: #8e8e93;
-
-    /* 与 Contacts 顶栏使用同一套毛玻璃参数 */
-    --ovo-contact-group-bg: rgba(255, 255, 255, 0.78);
-    --ovo-contact-group-blur: var(--contacts-glass-blur, 22px);
-    --ovo-contact-group-saturation:
-        var(--contacts-glass-saturation, 180%);
-
-    /* ---------- 右侧索引定位 ---------- */
-
-    /* 你的底栏目前是固定 84px；这里故意不再加 safe-area。 */
-    --ovo-contact-bottom-nav-height: 84px;
-
-    /*
-     * 可用区域中心 =（顶栏底部 + 底栏顶部）÷ 2。
-     * 顶栏收起 43px 时，索引会同步上移 21.5px。
-     */
-    --ovo-contact-index-center-expanded:
-        calc(
-            (
-                var(--contacts-expanded-height)
-                + 100dvh
-                - var(--ovo-contact-bottom-nav-height)
-            )
-            / 2
-        );
-
-    --ovo-contact-index-center-collapsed:
-        calc(
-            (
-                var(--contacts-collapsed-height)
-                + 100dvh
-                - var(--ovo-contact-bottom-nav-height)
-            )
-            / 2
-        );
-
-    /* 30px 点击热区贴边；字形本身再由 padding-right 留 3px。 */
-    --ovo-contact-index-right:
-        env(safe-area-inset-right, 0px);
+    /* 旧版 Edge / IE */
+    -ms-overflow-style: none !important;
 }
 
 
-/* ---------- 列表容器：去掉原主题的卡片留白 ---------- */
+/* Chrome / Safari / iOS WebKit */
 
-#contacts-screen .profile-section,
-#contacts-screen .friends-section,
-#contacts-screen .friend-list {
-    box-sizing: border-box;
-    width: 100% !important;
-    margin: 0 !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+#contacts-screen::-webkit-scrollbar {
+    display: none !important;
+
+    width: 0 !important;
+    height: 0 !important;
+}
+
+
+/* =========================================================
+   Contacts · 切页后顶栏动画隔次失忆修复 v2.0
+   纯 CSS · active 状态门控
+
+   原理：
+   - Contacts 退出 active 时，明确注销顶栏动画实例
+   - Contacts 重新 active 时，重新创建并连接动画
+   - 新动画直接读取当前 --contacts-scroll 进度
+   - 不重置 scrollTop
+   - 不重置滚动时间线
+   - 不影响每次都正常的右侧 A–Z 索引
+   ========================================================= */
+
+
+/* =========================================================
+   1. Contacts 离开当前页面时
+
+   主动拆掉顶栏所有 scroll-driven animation。
+
+   这里不能只隐藏画面；
+   必须让 animation-name 真正变成 none，
+   防止 Safari 下次复用失效的旧动画实例。
+   ========================================================= */
+
+#contacts-screen.screen:not(.active)
+> .app-header.chat-list-header,
+
+#contacts-screen.screen:not(.active)
+> .app-header
+.header-left::before,
+
+#contacts-screen.screen:not(.active)
+> .app-header
+.header-left
+> .title,
+
+#contacts-screen.screen:not(.active)
+> .app-header
+.header-left::after,
+
+#contacts-screen.screen:not(.active)
+> .app-header
+.action-btn-group
+> .action-btn[title="搜索"],
+
+#contacts-screen.screen:not(.active)
+> .app-header
+.action-btn-group
+> .action-btn[title="设置"],
+
+#contacts-screen.screen:not(.active)
+> .app-header.chat-list-header::after,
+
+#contacts-screen.screen:not(.active)
+> .app-header.chat-list-header::before {
+    animation: none !important;
+    animation-name: none !important;
+    animation-timeline: none !important;
+}
+
+
+/* =========================================================
+   2. Contacts 重新显示时
+
+   给全部顶栏动画重新建立统一参数。
+
+   animation-duration: 1s 只是标准化时长；
+   实际进度仍完全由 --contacts-scroll 控制。
+   ========================================================= */
+
+#contacts-screen.screen.active
+> .app-header.chat-list-header,
+
+#contacts-screen.screen.active
+> .app-header
+.header-left::before,
+
+#contacts-screen.screen.active
+> .app-header
+.header-left
+> .title,
+
+#contacts-screen.screen.active
+> .app-header
+.header-left::after,
+
+#contacts-screen.screen.active
+> .app-header
+.action-btn-group
+> .action-btn[title="搜索"],
+
+#contacts-screen.screen.active
+> .app-header
+.action-btn-group
+> .action-btn[title="设置"],
+
+#contacts-screen.screen.active
+> .app-header.chat-list-header::after,
+
+#contacts-screen.screen.active
+> .app-header.chat-list-header::before {
+    animation-duration: 1s !important;
+    animation-delay: 0s !important;
+
+    animation-timing-function:
+        linear !important;
+
+    animation-iteration-count:
+        1 !important;
+
+    animation-direction:
+        normal !important;
+
+    animation-fill-mode:
+        both !important;
+
+    animation-play-state:
+        running !important;
+
+    animation-timeline:
+        --contacts-scroll !important;
+
+    animation-range:
+        0px
+        var(--contacts-collapse-distance) !important;
+}
+
+
+/* =========================================================
+   3. 分别恢复每一层原本的动画名称
+   ========================================================= */
+
+
+/* 顶栏实际点击与裁切区域 */
+
+#contacts-screen.screen.active
+> .app-header.chat-list-header {
+    animation-name:
+        contacts-header-hit-area !important;
+}
+
+
+/* 毛玻璃表面 */
+
+#contacts-screen.screen.active
+> .app-header
+.header-left::before {
+    animation-name:
+        contacts-header-surface !important;
+}
+
+
+/* 展开状态大标题 */
+
+#contacts-screen.screen.active
+> .app-header
+.header-left
+> .title {
+    animation-name:
+        contacts-large-title-slide !important;
+}
+
+
+/* 折叠状态小标题 */
+
+#contacts-screen.screen.active
+> .app-header
+.header-left::after {
+    animation-name:
+        contacts-small-title-in !important;
+}
+
+
+/* 搜索按钮 */
+
+#contacts-screen.screen.active
+> .app-header
+.action-btn-group
+> .action-btn[title="搜索"] {
+    animation-name:
+        contacts-search-rise !important;
+}
+
+
+/* 麦克风位置的设置按钮 */
+
+#contacts-screen.screen.active
+> .app-header
+.action-btn-group
+> .action-btn[title="设置"] {
+    animation-name:
+        contacts-search-rise !important;
+}
+
+
+/* 搜索框视觉层 */
+
+#contacts-screen.screen.active
+> .app-header.chat-list-header::after {
+    animation-name:
+        contacts-search-rise !important;
+}
+
+
+/* 搜索框下方分割线 */
+
+#contacts-screen.screen.active
+> .app-header.chat-list-header::before {
+    animation-name:
+        contacts-divider-collapse !important;
+}
+
+
+
+/* =========================================================
+   Contacts · section 分组字母吸附 v4.1
+
+   - JS 生成每个 .ovo-contact-group section
+   - section 边界负责原生 sticky 推替
+   - IntersectionObserver 只切换当前组的视觉状态
+   - 不使用 scroll 监听或全局 sticky 镜像
+   ========================================================= */
+
+#contacts-screen {
+    /* 普通分组总节奏 50px：20px 字母行 + 30px 组间留白 */
+    --contacts-group-sticky-height: 20px;
+    --contacts-group-flow-gap:
+        calc(
+            var(--contacts-group-row-height, 50px)
+            - var(--contacts-group-sticky-height)
+        );
+
+    --contacts-group-sticky-top:
+        var(--contacts-collapsed-height);
+
+    --contacts-group-stuck-background:
+        var(
+            --contacts-glass-final,
+            rgba(245, 245, 245, 0.86)
+        );
+
+    --contacts-group-stuck-blur:
+        var(--contacts-glass-blur, 22px);
+
+    --contacts-group-stuck-saturation:
+        var(--contacts-glass-saturation, 180%);
+}
+
+
+/* 第一组前保留 30px；后续留白由上一 section 的 ::after 提供。 */
+
+#contacts-screen
+#contacts-list {
+    padding-top:
+        var(--contacts-group-flow-gap) !important;
 }
 
 
 /*
- * 允许 sticky 字母层单独来到顶栏之上；普通联系人仍保持在顶栏下面。
- * 原来的 z-index: 0 会把整棵列表锁进同一个低层级，导致字母吸住后被
- * 高度仍为展开态的透明 Header 盖住。
+ * 分割线属于非 sticky 的 section，因此普通态位于字母下方；
+ * 使用绝对定位伪元素，与联系人行采用完全相同的长度算法。
  */
 
-#contacts-screen > .content {
-    z-index: auto !important;
-}
-
-
-/* 原来的“好友 16”和两段之间的粗分隔不再占位置 */
-
-#contacts-screen .section-divider,
-#contacts-screen .friends-section > .section-title {
-    display: none !important;
-}
-
-
-/* ---------- 每个联系人：只留下名字 ---------- */
-
-#contacts-screen .content .profile-item {
+#contacts-screen
+#contacts-list
+> .ovo-contact-group {
     position: relative;
 
     box-sizing: border-box;
+    width: 100%;
+
+    display: block;
+    margin: 0;
+    padding: 0;
+
+    list-style: none;
+
+    background: transparent;
+}
+
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group::before {
+    content: "";
+
+    position: absolute;
+    z-index: 1;
+
+    top: var(--contacts-group-sticky-height);
+    left: var(--contacts-divider-left, 4.8%);
+
+    width: var(--contacts-divider-width, 90.4%);
+    height: var(--contacts-divider-height, 0.5px);
+
+    background: var(--contacts-hairline-color, #b4b4b4);
+
+    opacity: 1;
+    pointer-events: none;
+}
+
+
+/*
+ * 必须使用真实流内高度，不能改成 padding-bottom。
+ * Safari 的 sticky 约束会忽略底部 padding，导致旧字母提前离场。
+ */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group::after {
+    content: "";
+
+    display: block;
+    height: var(--contacts-group-flow-gap);
+
+    margin: 0;
+    padding: 0;
+
+    pointer-events: none;
+}
+
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group:last-child::after {
+    display: none;
+}
+
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .ovo-contact-group-title {
+    position: sticky !important;
+
+    top:
+        var(--contacts-group-sticky-top) !important;
+
+    z-index: 90 !important;
+
+    box-sizing: border-box !important;
+
     width: 100% !important;
-    min-height: var(--ovo-contact-row-height) !important;
+
+    height:
+        var(--contacts-group-sticky-height) !important;
+
+    min-height:
+        var(--contacts-group-sticky-height) !important;
 
     display: flex !important;
     align-items: center !important;
+    justify-content: flex-start !important;
 
     margin: 0 !important;
-    padding: 0 38px 0 20px !important;
 
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-}
+    padding:
+        0
+        0
+        0
+        var(--contacts-group-letter-left, 20px) !important;
 
-
-#contacts-screen .content .profile-item:hover,
-#contacts-screen .content .profile-item:active {
-    background: transparent !important;
-}
-
-
-#contacts-screen .content .profile-avatar,
-#contacts-screen .content .profile-status {
-    display: none !important;
-}
-
-
-#contacts-screen .content .profile-info {
-    box-sizing: border-box;
-    min-width: 0;
-
-    display: block !important;
-    flex: 1 1 auto !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden;
-}
-
-
-#contacts-screen .content .profile-name {
-    display: block !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
+    list-style: none !important;
 
     font-family:
         -apple-system,
@@ -2163,182 +4132,135 @@ img {
         "SF Pro Text",
         "Helvetica Neue",
         Arial,
-        sans-serif;
+        sans-serif !important;
 
-    font-size: calc(16px * var(--app-font-scale, 1)) !important;
+    font-size: 13px !important;
     font-weight: 600 !important;
-    line-height: 22px !important;
-    letter-spacing: -0.2px;
+    line-height:
+        var(--contacts-group-sticky-height) !important;
+    letter-spacing: -0.1px !important;
 
-    color: var(--contacts-black, #000000) !important;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+    color:
+        var(--contacts-group-letter-color, #8e8e93) !important;
 
-
-/* 联系人分割线：与搜索栏使用完全相同的宽度和左边距 */
-
-#contacts-screen .content .profile-item::after {
-    content: "";
-
-    position: absolute;
-    left: var(--ovo-contact-row-left);
-    bottom: 0;
-
-    width: var(--ovo-contact-row-width);
-    height: var(--contacts-divider-height, 0.5px);
-
-    background: var(--contacts-hairline-color, #b4b4b4);
-    border: 0;
-    opacity: 0.42;
-    pointer-events: none;
-}
-
-
-/* ---------- A / B / C 分组字母 ---------- */
-
-#contacts-screen .ovo-contact-group-title {
-    /*
-     * 整个元素包含 8px 留白；真正的玻璃行从顶栏底边开始。
-     * 所以吸附时分割线会先滑到顶栏下面，而不是常驻成灰条。
-     */
-    top:
-        calc(
-            var(--contacts-collapsed-height)
-            - var(--ovo-contact-group-gap)
-        ) !important;
-
-    isolation: isolate;
-    overflow: visible;
-    z-index: 110;
-
-    box-sizing: border-box;
-    height: var(--ovo-contact-group-total-height) !important;
-
-    margin: 0 !important;
-    padding:
-        var(--ovo-contact-group-gap)
-        20px
-        0 !important;
-
-    line-height: var(--ovo-contact-group-height) !important;
-
-    color: var(--ovo-contact-group-color) !important;
     background: transparent !important;
 
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
 
+    border: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+
+    transform: none !important;
+
     scroll-margin-top:
-        calc(
-            var(--contacts-collapsed-height)
-            + 1px
-        ) !important;
+        var(--contacts-group-sticky-top) !important;
 }
 
 
 /*
- * 白色页面上几乎看不见；吸附后联系人从后面经过时才显出玻璃感。
- * 这样不需要 JS 判断 sticky 状态。
+ * 标题底层伪元素承载毛玻璃。
+ * 它在新条碰到旧条后的 20px 上升距离内由透明连续变为完整毛玻璃。
  */
 
-#contacts-screen .ovo-contact-group-title::before {
-    content: "";
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .ovo-contact-group-title::before {
+    content: "" !important;
 
     position: absolute;
     z-index: -1;
-    top: var(--ovo-contact-group-gap);
-    right: 0;
-    bottom: 0;
-    left: 0;
+    inset: 0;
 
-    background: var(--ovo-contact-group-bg);
+    display: block !important;
+
+    background:
+        var(--contacts-group-stuck-background) !important;
 
     -webkit-backdrop-filter:
-        blur(var(--ovo-contact-group-blur))
-        saturate(var(--ovo-contact-group-saturation));
+        blur(var(--contacts-group-stuck-blur))
+        saturate(var(--contacts-group-stuck-saturation)) !important;
 
     backdrop-filter:
-        blur(var(--ovo-contact-group-blur))
-        saturate(var(--ovo-contact-group-saturation));
+        blur(var(--contacts-group-stuck-blur))
+        saturate(var(--contacts-group-stuck-saturation)) !important;
 
-    box-shadow: none;
+    opacity: 0;
     pointer-events: none;
+
+    animation-name: ovo-contact-group-glass-in;
+    animation-duration: 1s;
+    animation-timing-function: linear;
+    animation-iteration-count: 1;
+    animation-fill-mode: both;
+    animation-timeline: --contacts-scroll;
+    animation-range:
+        var(--ovo-contact-glass-start, 0px)
+        var(--ovo-contact-glass-end, 1px);
+}
+
+
+@keyframes ovo-contact-group-glass-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .ovo-contact-group-title::after {
+    content: none !important;
+    display: none !important;
+}
+
+
+/* 普通标题透明，并留在真实 Header 的层级之下。 */
+
+#contacts-screen
+#contacts-list[data-ovo-pin-tracking="ready"]
+> .ovo-contact-group
+> .ovo-contact-group-title {
+    z-index: 90 !important;
+
+    isolation: isolate;
+
+    background: transparent !important;
+    background-color: transparent !important;
+
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+
+/* pinned 时隐藏普通流分割线。 */
+
+#contacts-screen
+#contacts-list[data-ovo-pin-tracking="ready"]
+> .ovo-contact-group[data-ovo-pinned="true"]::before {
+    opacity: 0;
 }
 
 
 /*
- * 分割线放在玻璃行的顶部。
- * 普通状态是“字母 + 线”；吸附时这根线滑进上方顶栏的底边。
+ * pinned 条保持在 z-index:100 的真实 Header 下方。
+ * 它能显示在 Header 的透明下沿，但不会盖住搜索栏。
  */
 
-#contacts-screen .ovo-contact-group-title::after {
-    content: "";
-
-    position: absolute;
-    z-index: 1;
-    top: var(--ovo-contact-group-gap);
-    left: var(--ovo-contact-row-left);
-
-    width: var(--ovo-contact-row-width);
-    height: var(--contacts-divider-height, 0.5px);
-
-    background: var(--contacts-hairline-color, #b4b4b4);
-    opacity: 0.42;
-    pointer-events: none;
+#contacts-screen
+#contacts-list[data-ovo-pin-tracking="ready"]
+> .ovo-contact-group[data-ovo-pinned="true"]
+> .ovo-contact-group-title::before {
+    opacity: 1;
 }
 
 
-/* ---------- 右侧 A–Z：贴近右边 3px，点击热区仍保留 30px ---------- */
+/* 允许当前字母越过布局仍为展开高度的透明 Header 区域。 */
 
-#contacts-screen .ovo-contact-index {
-    /* top 不能加 !important，否则滚动时间线无法改写这个属性。 */
-    top: var(--ovo-contact-index-center-expanded);
-    right: var(--ovo-contact-index-right) !important;
-
-    max-height:
-        calc(
-            100dvh
-            - var(--contacts-collapsed-height)
-            - var(--ovo-contact-bottom-nav-height)
-        ) !important;
-}
-
-
-#contacts-screen .ovo-contact-index-letter {
-    justify-content: flex-end !important;
-    padding-right: 3px !important;
-    text-align: right !important;
-}
-
-
-@keyframes ovo-contact-index-follow-header {
-    from {
-        top: var(--ovo-contact-index-center-expanded);
-    }
-
-    to {
-        top: var(--ovo-contact-index-center-collapsed);
-    }
-}
-
-
-/*
- * 使用页面已经存在的 Contacts 滚动时间线。
- * 这只改变索引的居中位置，不参与字母吸附，也不需要新增 JS。
- */
-
-@supports (animation-timeline: scroll()) {
-    #contacts-screen .ovo-contact-index {
-        animation-name: ovo-contact-index-follow-header !important;
-        animation-duration: 1s !important;
-        animation-timing-function: linear !important;
-        animation-fill-mode: both !important;
-
-        animation-timeline: --contacts-scroll !important;
-        animation-range:
-            0px
-            var(--contacts-collapse-distance) !important;
-    }
+#contacts-screen
+> .content {
+    z-index: auto !important;
 }
