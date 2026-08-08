@@ -18,7 +18,7 @@
    ========================= */
 
 #global-bottom-nav.bottom-nav {
-    height: 84px !important;
+    height: 85px !important;
     box-sizing: border-box !important;
 
     background-color: rgba(245, 245, 245, 0.72) !important;
@@ -32,7 +32,7 @@
         saturate(165%) !important;
 
     border-top:
-        0.7px solid rgba(180, 180, 180, 0.72) !important;
+        0.5px solid rgba(180, 180, 180, 0.72) !important;
 
     box-shadow: none !important;
 
@@ -532,7 +532,7 @@ has(> .nav-item[data-target="phone-screen"].active) {
    1. Header 布局高度固定，不再通过缩短高度挤压联系人内容
    2. 搜索栏、分割线、毛玻璃底边同步上升
    3. 联系人内容只进行页面原生滚动
-   4. 前 43px 内，联系人内容与搜索栏同步上升
+   4. 前 51px 内，联系人内容与搜索栏同步上升
    5. 搜索栏吸附完成后，联系人内容继续进入顶栏下方
    6. 保留当前全部尺寸、位置、颜色和 SVG 微调
    ========================================================= */
@@ -569,7 +569,19 @@ has(> .nav-item[data-target="phone-screen"].active) {
     --contacts-large-title-height: 43px;
 
     /* 顶栏从展开到吸附的滚动距离 */
-    --contacts-collapse-distance: 43px;
+    --contacts-collapse-distance: 51px;
+
+    /*
+     * 折叠终点不再额外超出滚动距离。
+     * 顶栏与页面内容在折叠过程中保持 1:1 同步上移。
+     */
+    --contacts-collapsed-extra-trim: 0px;
+
+    --contacts-collapsed-rise:
+        calc(
+            var(--contacts-collapse-distance)
+            + var(--contacts-collapsed-extra-trim)
+        );
 
     /* 大标题动画中段的裁切量 */
     --contacts-title-mid-clip: 30px;
@@ -700,7 +712,7 @@ has(> .nav-item[data-target="phone-screen"].active) {
     --contacts-collapsed-height:
         calc(
             var(--contacts-expanded-height)
-            - var(--contacts-collapse-distance)
+            - var(--contacts-collapsed-rise)
         );
 
 
@@ -824,7 +836,7 @@ has(> .nav-item[data-target="phone-screen"].active) {
         hidden !important;
 
     /*
-     * 折叠后 Header 仍有 43px 的透明区域。
+     * 折叠后 Header 仍有 51px 的透明区域。
      * 禁止这块透明区域挡住联系人点击。
      */
     pointer-events:
@@ -861,7 +873,7 @@ has(> .nav-item[data-target="phone-screen"].active) {
 
 /*
  * 毛玻璃本体保持展开高度。
- * 滚动时使用 clip-path 从底部逐渐裁掉 43px。
+ * 滚动时使用 clip-path 从底部逐渐裁掉 51px。
  *
  * 因为只裁视觉区域，不改变布局高度，
  * 所以下面的联系人不会被额外向上挤压。
@@ -1064,8 +1076,12 @@ has(> .nav-item[data-target="phone-screen"].active) {
     position:
         absolute;
 
+    /*
+     * 与蓝色加号共用纵向基准。
+     * 加号保持不动，小标题中心与加号中心严格对齐。
+     */
     top:
-        var(--contacts-header-y-shift);
+        var(--contacts-plus-y-shift);
 
     left:
         0;
@@ -1314,7 +1330,7 @@ img {
 
     /*
      * 这里仍以展开状态 Header 的底部为基准。
-     * 前 43px 滚动期间，整颗搜索框向上移动 43px。
+     * 前 51px 滚动期间，整颗搜索框同步向上移动 51px。
      */
     bottom:
         calc(
@@ -1495,7 +1511,7 @@ img {
 
 /*
  * Header 布局高度不变。
- * 毛玻璃从底部逐渐裁掉 43px。
+ * 毛玻璃从底部逐渐裁掉 51px。
  */
 
 @keyframes contacts-header-surface {
@@ -1523,7 +1539,7 @@ img {
             inset(
                 0
                 0
-                var(--contacts-collapse-distance)
+                var(--contacts-collapsed-rise)
                 0
             );
 
@@ -1531,7 +1547,7 @@ img {
             inset(
                 0
                 0
-                var(--contacts-collapse-distance)
+                var(--contacts-collapsed-rise)
                 0
             );
     }
@@ -1675,7 +1691,7 @@ img {
                 0,
                 calc(
                     0px
-                    - var(--contacts-collapse-distance)
+                    - var(--contacts-collapsed-rise)
                 ),
                 0
             );
@@ -1709,7 +1725,7 @@ img {
                 0,
                 calc(
                     0px
-                    - var(--contacts-collapse-distance)
+                    - var(--contacts-collapsed-rise)
                 ),
                 0
             );
@@ -2730,10 +2746,11 @@ img {
     /*
      * 页面内容底部的安全空间。
      *
-     * 底栏约 81～84px，
-     * 这里保留 85px，防止 footer 被底栏盖住。
+     * 底栏真实高度现在是 85px。
+     * 这里保留 84px，延续原来与底栏相差 1px 的关系，
+     * 不改变 52px 联系人数量区域的高度和可见位置。
      */
-    --contacts-bottom-scroll-space: 83px;
+    --contacts-bottom-scroll-space: 84px;
 }
 
 
@@ -3220,7 +3237,7 @@ img {
 
    当前负责：
    1. 启用现有 JS 生成的 A–Z + # 索引
-   2. 索引在顶栏底部与 84px 底栏顶部之间居中
+   2. 索引在顶栏底部与 85px 底栏顶部之间居中
    3. 顶栏折叠时，整个索引同步向上移动
    4. 保留 30px 手指点击与滑动热区
    5. 字母在独立的 12px 显示区域内严格居中
@@ -3319,8 +3336,8 @@ img {
        底栏与索引纵向位置
        ===================================================== */
 
-    /* 当前底栏真实高度 */
-    --contacts-index-bottom-nav-height: 84px;
+    /* 底栏高度增加 1px 后，索引计算使用的真实下边界 */
+    --contacts-index-bottom-nav-height: 85px;
 
     /*
      * 展开顶栏时的可用区域中心：
@@ -3708,8 +3725,8 @@ img {
 /* =========================================================
    6. 顶栏折叠时索引同步上移
 
-   顶栏总共折叠 43px，
-   可用区域的中心点会随之上移 21.5px。
+   顶栏折叠终点总共收紧 51px，
+   可用区域的中心点会随之上移 25.5px。
    ========================================================= */
 
 @keyframes contacts-index-follow-header-v1 {
@@ -4307,4 +4324,130 @@ img {
 #contacts-screen
 > .content {
     z-index: auto !important;
+}
+
+
+/* =========================================================
+   字母分割线改为与联系人分割线完全相同的画法
+   ========================================================= */
+
+
+/* 关闭 v4.1 由 section 绘制的旧字母分割线 */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group::before {
+    content: none !important;
+    display: none !important;
+}
+
+
+/* 字母标题底部使用与联系人行相同的真实 0.5px 分割线 */
+
+#contacts-screen
+#contacts-list
+> .ovo-contact-group
+> .ovo-contact-group-title::after {
+    content: "" !important;
+
+    position: absolute !important;
+    z-index: 1 !important;
+
+    left:
+        var(--contacts-divider-left, 4.8%) !important;
+
+    right: auto !important;
+
+    top: auto !important;
+    bottom: 0 !important;
+
+    width:
+        var(--contacts-divider-width, 90.4%) !important;
+
+    height:
+        var(--contacts-divider-height, 0.5px) !important;
+
+    background:
+        var(--contacts-hairline-color, #b4b4b4) !important;
+
+    opacity: 1 !important;
+
+    transform: none !important;
+    transform-origin: initial !important;
+
+    display: block !important;
+    pointer-events: none !important;
+}
+
+
+/* 字母吸附到顶栏后隐藏这条线，
+   保持你当前 pinned 状态的逻辑 */
+
+#contacts-screen
+#contacts-list[data-ovo-pin-tracking="ready"]
+> .ovo-contact-group[data-ovo-pinned="true"]
+> .ovo-contact-group-title::after {
+    opacity: 0 !important;
+}
+
+
+/* =========================================================
+   全局底栏层级修正
+
+   普通页面内容 < 底栏 < 弹窗遮罩 / Action Sheet
+   ========================================================= */
+
+#global-bottom-nav.bottom-nav {
+    z-index: 90 !important;
+}
+
+/* =========================================================
+   Contacts · 底部联系人数英文化
+   ========================================================= */
+
+#contacts-screen
+.friends-section
+> .section-title {
+    font-size:
+        0 !important;
+}
+
+#contacts-screen
+#friends-count {
+    font-size:
+        17px !important;
+
+    font-weight:
+        550 !important;
+
+    line-height:
+        96px !important;
+
+    letter-spacing:
+        -0.2px !important;
+}
+
+#contacts-screen
+.friends-section
+> .section-title::after {
+    content:
+        "Contacts" !important;
+
+    display:
+        inline-block !important;
+
+    margin-left:
+        2px !important;
+
+    font-size:
+        17px !important;
+
+    font-weight:
+        550 !important;
+
+    line-height:
+        96px !important;
+
+    letter-spacing:
+        -0.2px !important;
 }
