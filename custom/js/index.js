@@ -1,3 +1,5 @@
+import './image-token-estimate.js?v=1';
+
 const PATCH_LOADED_EVENT = 'ovo:custom-patch-loaded';
 const CONTACTS_GROUPED_EVENT = 'ovo:contacts-grouped';
 const CONTACTS_LIST_ID = 'contacts-list';
