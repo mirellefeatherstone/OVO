@@ -364,27 +364,7 @@ function createMessageBubbleElement(message, isContinuous = false) {
         }
     }
 
-    const isBilingualMode = chat.bilingualModeEnabled;
-    let bilingualMatch = null;
-    // 增加 && !isThinking，防止思考内容被当成双语消息解析
-    if (isBilingualMode && role === 'assistant' && !isThinking) {
-        // 修改正则以兼容 "的消息：" 和 "回复：" (包括 "并回复")
-const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
-        if (contentMatch) {
-            const mainText = contentMatch[1].trim();
-            
-            // 优先尝试匹配「」
-            const lastCloseBracket = mainText.lastIndexOf('」');
-            if (lastCloseBracket > -1) {
-                const lastOpenBracket = mainText.lastIndexOf('「', lastCloseBracket);
-                if (lastOpenBracket > -1) {
-                    const chineseText = mainText.substring(lastOpenBracket + 1, lastCloseBracket).trim();
-                    const foreignText = mainText.substring(0, lastOpenBracket).trim();
-                    if (foreignText && chineseText) {
-                        bilingualMatch = [null, foreignText, chineseText];
-                    }
-                }
-            }
+    
 
             // 如果没有匹配到「」，则回退匹配 () 或 （）以兼容旧消息
             if (!bilingualMatch) {
