@@ -366,43 +366,7 @@ function createMessageBubbleElement(message, isContinuous = false) {
 
     
 
-            // 如果没有匹配到「」，则回退匹配 () 或 （）以兼容旧消息
-            if (!bilingualMatch) {
-                const isBilingualMode = chat.bilingualModeEnabled;
-                let bilingualMatch = null;
-
-                // 双语翻译只认明确的 「中文翻译」 格式。
-                // 不再使用 () / （）作为翻译兜底，避免颜文字、括号补充说明被误判。
-                if (isBilingualMode && role === 'assistant' && !isThinking) {
-                    const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
-
-                    if (contentMatch) {
-                        const mainText = contentMatch[1].trim();
-
-                        // 翻译必须位于正文末尾：外语原文「中文翻译」
-                        const lastCloseBracket = mainText.endsWith('」')
-                            ? mainText.length - 1
-                            : -1;
-
-                        if (lastCloseBracket > -1) {
-                            const lastOpenBracket = mainText.lastIndexOf('「', lastCloseBracket);
-
-                            if (lastOpenBracket > -1) {
-                                const chineseText = mainText
-                                    .substring(lastOpenBracket + 1, lastCloseBracket)
-                                    .trim();
-
-                                const foreignText = mainText
-                                    .substring(0, lastOpenBracket)
-                                    .trim();
-
-                                if (foreignText && chineseText) {
-                                    bilingualMatch = [null, foreignText, chineseText];
-                                }
-                            }
-                        }
-                    }
-                }
+            
 
     if (bilingualMatch) {
         const foreignText = bilingualMatch[1].trim();
@@ -411,7 +375,7 @@ function createMessageBubbleElement(message, isContinuous = false) {
         wrapper.dataset.id = id;
         wrapper.className = 'message-wrapper received';
         if (message.isContextDisabled) wrapper.classList.add('context-disabled');
-        
+
         if (currentChatType === 'group') {
             wrapper.classList.add('group-message');
         }
@@ -431,111 +395,111 @@ function createMessageBubbleElement(message, isContinuous = false) {
         const bubbleRow = document.createElement('div');
         bubbleRow.className = 'message-bubble-row';
         const timeString = formatTimestampByFormat(timestamp, chat);
-        
+
         const bubbleElement = document.createElement('div');
         bubbleElement.className = 'message-bubble received bilingual-bubble';
-        
+
         const styleMode = chat.bilingualBubbleStyle || 'under';
-        
+
         if (styleMode === 'inner' || styleMode === 'inner-no-line') {
 
-    if (styleMode === 'inner-no-line') {
-        bubbleElement.classList.add('inner-no-line-style');
-    } else {
-        bubbleElement.classList.add('inner-style');
-    }
+            if (styleMode === 'inner-no-line') {
+                bubbleElement.classList.add('inner-no-line-style');
+            } else {
+                bubbleElement.classList.add('inner-style');
+            }
 
 
-    /* ---------- 原文 ---------- */
+            /* ---------- 原文 ---------- */
 
-    const foreignSpan =
-        document.createElement('span');
+            const foreignSpan =
+                document.createElement('span');
 
-    foreignSpan.className =
-        'bilingual-main-text';
+            foreignSpan.className =
+                'bilingual-main-text';
 
-    if (
-        window.WeChatEmoji &&
-        window.WeChatEmoji.isLoaded
-    ) {
-        window.WeChatEmoji.renderInto(
-            foreignSpan,
-            foreignText
-        );
-    } else {
-        foreignSpan.textContent =
-            foreignText;
-    }
-
-
-    /* ---------- 分割线 ---------- */
-
-    const divider =
-        document.createElement('div');
-
-    divider.className =
-        'bilingual-divider';
+            if (
+                window.WeChatEmoji &&
+                window.WeChatEmoji.isLoaded
+            ) {
+                window.WeChatEmoji.renderInto(
+                    foreignSpan,
+                    foreignText
+                );
+            } else {
+                foreignSpan.textContent =
+                    foreignText;
+            }
 
 
-    /* ---------- 翻译 ---------- */
+            /* ---------- 分割线 ---------- */
 
-    const translationSpan =
-        document.createElement('span');
+            const divider =
+                document.createElement('div');
 
-    translationSpan.className =
-        'translation-inner';
-
-    if (
-        window.WeChatEmoji &&
-        window.WeChatEmoji.isLoaded
-    ) {
-        window.WeChatEmoji.renderInto(
-            translationSpan,
-            chineseText
-        );
-    } else {
-        translationSpan.textContent =
-            chineseText;
-    }
+            divider.className =
+                'bilingual-divider';
 
 
-    bubbleElement.appendChild(
-        foreignSpan
-    );
+            /* ---------- 翻译 ---------- */
 
-    bubbleElement.appendChild(
-        divider
-    );
+            const translationSpan =
+                document.createElement('span');
 
-    bubbleElement.appendChild(
-        translationSpan
-    );
+            translationSpan.className =
+                'translation-inner';
 
-} else {
+            if (
+                window.WeChatEmoji &&
+                window.WeChatEmoji.isLoaded
+            ) {
+                window.WeChatEmoji.renderInto(
+                    translationSpan,
+                    chineseText
+                );
+            } else {
+                translationSpan.textContent =
+                    chineseText;
+            }
 
-    const foreignSpan =
-        document.createElement('span');
 
-    foreignSpan.className =
-        'bilingual-main-text';
+            bubbleElement.appendChild(
+                foreignSpan
+            );
 
-    if (
-        window.WeChatEmoji &&
-        window.WeChatEmoji.isLoaded
-    ) {
-        window.WeChatEmoji.renderInto(
-            foreignSpan,
-            foreignText
-        );
-    } else {
-        foreignSpan.textContent =
-            foreignText;
-    }
+            bubbleElement.appendChild(
+                divider
+            );
 
-    bubbleElement.appendChild(
-        foreignSpan
-    );
-}
+            bubbleElement.appendChild(
+                translationSpan
+            );
+
+        } else {
+
+            const foreignSpan =
+                document.createElement('span');
+
+            foreignSpan.className =
+                'bilingual-main-text';
+
+            if (
+                window.WeChatEmoji &&
+                window.WeChatEmoji.isLoaded
+            ) {
+                window.WeChatEmoji.renderInto(
+                    foreignSpan,
+                    foreignText
+                );
+            } else {
+                foreignSpan.textContent =
+                    foreignText;
+            }
+
+            bubbleElement.appendChild(
+                foreignSpan
+            );
+        }
 
         const themeKey = chat.theme || 'white_pink';
         const theme = colorThemes[themeKey] || colorThemes['white_pink'];
@@ -544,7 +508,7 @@ function createMessageBubbleElement(message, isContinuous = false) {
             bubbleElement.style.backgroundColor = bubbleTheme.bg;
             bubbleElement.style.color = bubbleTheme.text;
         }
-        
+
         // Time Stamp Logic for Bilingual
         const timeSpan = document.createElement('span');
         timeSpan.className = 'message-time';
@@ -571,14 +535,14 @@ function createMessageBubbleElement(message, isContinuous = false) {
         if (currentChatType === 'group') {
             const contentContainer = document.createElement('div');
             contentContainer.className = 'group-msg-content';
-            
+
             if (senderNickname) {
                 const nicknameDiv = document.createElement('div');
                 nicknameDiv.className = 'group-nickname';
                 nicknameDiv.textContent = senderNickname;
                 contentContainer.appendChild(nicknameDiv);
             }
-            
+
             contentContainer.appendChild(bubbleElement);
             bubbleRow.appendChild(messageInfo);
             bubbleRow.appendChild(contentContainer);
@@ -591,29 +555,29 @@ function createMessageBubbleElement(message, isContinuous = false) {
 
         if (styleMode === 'under') {
 
-    const translationDiv =
-        document.createElement('div');
+            const translationDiv =
+                document.createElement('div');
 
-    translationDiv.className =
-        'translation-text';
+            translationDiv.className =
+                'translation-text';
 
-    if (
-        window.WeChatEmoji &&
-        window.WeChatEmoji.isLoaded
-    ) {
-        window.WeChatEmoji.renderInto(
-            translationDiv,
-            chineseText
-        );
-    } else {
-        translationDiv.textContent =
-            chineseText;
-    }
+            if (
+                window.WeChatEmoji &&
+                window.WeChatEmoji.isLoaded
+            ) {
+                window.WeChatEmoji.renderInto(
+                    translationDiv,
+                    chineseText
+                );
+            } else {
+                translationDiv.textContent =
+                    chineseText;
+            }
 
-    wrapper.appendChild(
-        translationDiv
-    );
-}
+            wrapper.appendChild(
+                translationDiv
+            );
+        }
 
         // --- 【新增】在双语消息中注入引用(回复)气泡渲染逻辑 ---
         if (quote) {
