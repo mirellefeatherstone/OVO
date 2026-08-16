@@ -341,7 +341,16 @@ function renderFavoritesList(filter) {
             }).join('');
         }
     }
-
+    /* 微信黄豆：收藏列表 */
+    if (
+        window.WeChatEmoji &&
+        window.WeChatEmoji.isLoaded &&
+        typeof window.WeChatEmoji.renderInElement === 'function'
+    ) {
+        window.WeChatEmoji.renderInElement(
+            container
+        );
+    }
     // 点击由 initFavoritesScreen 中容器上的事件委托统一处理
 }
 
@@ -532,6 +541,16 @@ function openFavoriteDetail(favoriteId) {
         }
     }
     contentEl.textContent = preview;
+    /* 微信黄豆：收藏详情 */
+    if (
+        window.WeChatEmoji &&
+        window.WeChatEmoji.isLoaded &&
+        typeof window.WeChatEmoji.renderInElement === 'function'
+    ) {
+        window.WeChatEmoji.renderInElement(
+            contentEl
+        );
+    }
     noteInput.value = fav.note || '';
     noteInput.readOnly = isCharacterFavorite;
     noteInput.placeholder = isCharacterFavorite ? '角色的收藏寄语（只读）' : '写一句想记住的话…';

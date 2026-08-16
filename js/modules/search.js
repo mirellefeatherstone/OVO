@@ -282,6 +282,16 @@ const SearchSystem = {
         });
 
         container.appendChild(list);
+        /* 微信黄豆：搜索结果 */
+        if (
+            window.WeChatEmoji &&
+            window.WeChatEmoji.isLoaded &&
+            typeof window.WeChatEmoji.renderInElement === 'function'
+        ) {
+            window.WeChatEmoji.renderInElement(
+                container
+            );
+        }
     },
 
     // 渲染详情页 (消息列表)
@@ -355,15 +365,117 @@ const SearchSystem = {
         });
 
         container.appendChild(list);
+        /* 微信黄豆：搜索结果 */
+        if (
+            window.WeChatEmoji &&
+            window.WeChatEmoji.isLoaded &&
+            typeof window.WeChatEmoji.renderInElement === 'function'
+        ) {
+            window.WeChatEmoji.renderInElement(
+                container
+            );
+        }
     },
 
     // 关键词高亮处理
     highlightKeyword(content, keyword) {
-        if (!keyword) return this.escapeHtml(content);
-        const safeContent = this.escapeHtml(content);
-        const safeKeyword = this.escapeHtml(keyword);
-        const regex = new RegExp(`(${safeKeyword})`, 'gi');
-        return safeContent.replace(regex, '<span class="keyword-highlight">$1</span>');
+
+        const source =
+            content === null || content === undefined
+                ? ''
+                : String(content);
+
+        if (!keyword) {
+            return this.escapeHtml(source);
+        }
+
+
+        /* 防止搜索词里的正则字符捣乱 */
+        const escapedKeyword =
+            keyword.replace(
+                /[.*+?^${}()|[\]\\]/g,
+                '\\$&'
+            );
+
+        const keywordRegex =
+            new RegExp(
+                `(${escapedKeyword})`,
+                'gi'
+            );
+
+
+        /* 普通文字的关键词高亮 */
+        const highlightText = (text) => {
+
+            return text
+                .split(keywordRegex)
+                .map((part, index) => {
+
+                    if (index % 2 === 1) {
+                        return (
+                            '<span class="keyword-highlight">' +
+                            this.escapeHtml(part) +
+                            '</span>'
+                        );
+                    }
+
+                    return this.escapeHtml(part);
+                })
+                .join('');
+        };
+
+
+        const tokenRegex =
+            /\[[^\[\]\r\n]+\]/g;
+
+        let result = '';
+        let lastIndex = 0;
+        let match;
+
+
+        while (
+            (match = tokenRegex.exec(source)) !== null
+        ) {
+
+            result += highlightText(
+                source.slice(
+                    lastIndex,
+                    match.index
+                )
+            );
+
+
+            const token =
+                match[0];
+
+            /*
+             * 真正的微信黄豆 token 不拆开做关键词高亮，
+             * 留给 renderInElement 转成图片。
+             */
+            if (
+                window.WeChatEmoji &&
+                typeof window.WeChatEmoji.hasToken === 'function' &&
+                window.WeChatEmoji.hasToken(token)
+            ) {
+                result +=
+                    this.escapeHtml(token);
+            } else {
+                result +=
+                    highlightText(token);
+            }
+
+
+            lastIndex =
+                tokenRegex.lastIndex;
+        }
+
+
+        result += highlightText(
+            source.slice(lastIndex)
+        );
+
+
+        return result;
     },
 
     // 打开筛选范围模态框

@@ -388,23 +388,41 @@ const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
 
             // 如果没有匹配到「」，则回退匹配 () 或 （）以兼容旧消息
             if (!bilingualMatch) {
-                const lastCloseParen = Math.max(mainText.lastIndexOf(')'), mainText.lastIndexOf('）'));
-                if (lastCloseParen > -1) {
-                    const lastOpenParen = Math.max(
-                        mainText.lastIndexOf('(', lastCloseParen),
-                        mainText.lastIndexOf('（', lastCloseParen)
-                    );
-                    if (lastOpenParen > -1) {
-                        const chineseText = mainText.substring(lastOpenParen + 1, lastCloseParen).trim();
-                        const foreignText = mainText.substring(0, lastOpenParen).trim();
-                        if (foreignText && chineseText) {
-                            bilingualMatch = [null, foreignText, chineseText];
+                const isBilingualMode = chat.bilingualModeEnabled;
+                let bilingualMatch = null;
+
+                // 双语翻译只认明确的 「中文翻译」 格式。
+                // 不再使用 () / （）作为翻译兜底，避免颜文字、括号补充说明被误判。
+                if (isBilingualMode && role === 'assistant' && !isThinking) {
+                    const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
+
+                    if (contentMatch) {
+                        const mainText = contentMatch[1].trim();
+
+                        // 翻译必须位于正文末尾：外语原文「中文翻译」
+                        const lastCloseBracket = mainText.endsWith('」')
+                            ? mainText.length - 1
+                            : -1;
+
+                        if (lastCloseBracket > -1) {
+                            const lastOpenBracket = mainText.lastIndexOf('「', lastCloseBracket);
+
+                            if (lastOpenBracket > -1) {
+                                const chineseText = mainText
+                                    .substring(lastOpenBracket + 1, lastCloseBracket)
+                                    .trim();
+
+                                const foreignText = mainText
+                                    .substring(0, lastOpenBracket)
+                                    .trim();
+
+                                if (foreignText && chineseText) {
+                                    bilingualMatch = [null, foreignText, chineseText];
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
-    }
 
     if (bilingualMatch) {
         const foreignText = bilingualMatch[1].trim();
@@ -440,20 +458,104 @@ const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
         const styleMode = chat.bilingualBubbleStyle || 'under';
         
         if (styleMode === 'inner' || styleMode === 'inner-no-line') {
-            if (styleMode === 'inner-no-line') {
-                bubbleElement.classList.add('inner-no-line-style');
-            } else {
-                bubbleElement.classList.add('inner-style');
-            }
-            
-            bubbleElement.innerHTML = `
-                <span>${DOMPurify.sanitize(foreignText)}</span>
-                <div class="bilingual-divider"></div>
-                <span class="translation-inner">${DOMPurify.sanitize(chineseText)}</span>
-            `;
-        } else {
-            bubbleElement.innerHTML = `<span>${DOMPurify.sanitize(foreignText)}</span>`;
-        }
+
+    if (styleMode === 'inner-no-line') {
+        bubbleElement.classList.add('inner-no-line-style');
+    } else {
+        bubbleElement.classList.add('inner-style');
+    }
+
+
+    /* ---------- 原文 ---------- */
+
+    const foreignSpan =
+        document.createElement('span');
+
+    foreignSpan.className =
+        'bilingual-main-text';
+
+    if (
+        window.WeChatEmoji &&
+        window.WeChatEmoji.isLoaded
+    ) {
+        window.WeChatEmoji.renderInto(
+            foreignSpan,
+            foreignText
+        );
+    } else {
+        foreignSpan.textContent =
+            foreignText;
+    }
+
+
+    /* ---------- 分割线 ---------- */
+
+    const divider =
+        document.createElement('div');
+
+    divider.className =
+        'bilingual-divider';
+
+
+    /* ---------- 翻译 ---------- */
+
+    const translationSpan =
+        document.createElement('span');
+
+    translationSpan.className =
+        'translation-inner';
+
+    if (
+        window.WeChatEmoji &&
+        window.WeChatEmoji.isLoaded
+    ) {
+        window.WeChatEmoji.renderInto(
+            translationSpan,
+            chineseText
+        );
+    } else {
+        translationSpan.textContent =
+            chineseText;
+    }
+
+
+    bubbleElement.appendChild(
+        foreignSpan
+    );
+
+    bubbleElement.appendChild(
+        divider
+    );
+
+    bubbleElement.appendChild(
+        translationSpan
+    );
+
+} else {
+
+    const foreignSpan =
+        document.createElement('span');
+
+    foreignSpan.className =
+        'bilingual-main-text';
+
+    if (
+        window.WeChatEmoji &&
+        window.WeChatEmoji.isLoaded
+    ) {
+        window.WeChatEmoji.renderInto(
+            foreignSpan,
+            foreignText
+        );
+    } else {
+        foreignSpan.textContent =
+            foreignText;
+    }
+
+    bubbleElement.appendChild(
+        foreignSpan
+    );
+}
 
         const themeKey = chat.theme || 'white_pink';
         const theme = colorThemes[themeKey] || colorThemes['white_pink'];
@@ -508,11 +610,30 @@ const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
         wrapper.appendChild(bubbleRow);
 
         if (styleMode === 'under') {
-            const translationDiv = document.createElement('div');
-            translationDiv.className = 'translation-text';
-            translationDiv.textContent = chineseText;
-            wrapper.appendChild(translationDiv);
-        }
+
+    const translationDiv =
+        document.createElement('div');
+
+    translationDiv.className =
+        'translation-text';
+
+    if (
+        window.WeChatEmoji &&
+        window.WeChatEmoji.isLoaded
+    ) {
+        window.WeChatEmoji.renderInto(
+            translationDiv,
+            chineseText
+        );
+    } else {
+        translationDiv.textContent =
+            chineseText;
+    }
+
+    wrapper.appendChild(
+        translationDiv
+    );
+}
 
         // --- 【新增】在双语消息中注入引用(回复)气泡渲染逻辑 ---
         if (quote) {
@@ -534,8 +655,20 @@ const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
             quoteDiv.className = 'quoted-message';
             const sanitizedQuotedText = DOMPurify.sanitize(quote.content, { ALLOWED_TAGS: [] });
             quoteDiv.innerHTML = `<span class="quoted-sender">回复 ${quotedSenderName}</span><p class="quoted-text">${sanitizedQuotedText}</p>`;
-            
-            // 将引用气泡插入到双语主气泡的前面 (CSS绝对定位会自动处理位置)
+
+
+            /* 微信黄豆：引用内容 */
+            if (
+                window.WeChatEmoji &&
+                window.WeChatEmoji.isLoaded &&
+                typeof window.WeChatEmoji.renderInElement === 'function'
+            ) {
+                window.WeChatEmoji.renderInElement(
+                    quoteDiv
+                );
+            }
+
+
             bubbleElement.prepend(quoteDiv);
         }
         // ---------------------------------------------------
@@ -748,7 +881,7 @@ const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
     const privateGiftRegex = /\[(?:.+?)送来的礼物[：:]([\s\S]+?)\]/;
     const groupGiftRegex = /\[(.*?)\s*向\s*(.*?)\s*送来了礼物[：:]([\s\S]+?)\]/;
     const imageRecogRegex = /\[.*?发来了一张图片[：:]\]/;
-    const textRegex = /\[(?:.+?)的消息[：:]([\s\S]+?)\]/;
+    const textRegex = /^\[(?:.+?)的消息[：:]([\s\S]*)\]$/;
     /* 用户定位 [我的位置：...] 或 角色定位 [XXX的位置：...] */
     const locationRegex = /\[(.+?)的位置[：:](.+?)(?:；距你约\s*([\d.]+)\s*(米|千米|公里))?\]/;
     
@@ -1382,7 +1515,28 @@ const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
         bubbleElement = document.createElement('div');
         bubbleElement.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
         let userText = textMatch[1].trim().replace(/\[发送时间:.*?\]/g, '').trim();
-        bubbleElement.innerHTML = `<span class="bubble-content">${DOMPurify.sanitize(userText)}</span>`;
+        const bubbleContent =
+    document.createElement('span');
+
+    bubbleContent.className =
+        'bubble-content';
+
+    if (
+        window.WeChatEmoji &&
+        window.WeChatEmoji.isLoaded
+    ) {
+        window.WeChatEmoji.renderInto(
+            bubbleContent,
+            userText
+        );
+    } else {
+        bubbleContent.textContent =
+            userText;
+    }
+
+    bubbleElement.appendChild(
+        bubbleContent
+    );
         if (!chat.useCustomBubbleCss) {
             bubbleElement.style.backgroundColor = bubbleTheme.bg;
             bubbleElement.style.color = bubbleTheme.text;
@@ -1428,7 +1582,28 @@ const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
             }
         }
 
-        bubbleElement.innerHTML = `<span class="bubble-content">${DOMPurify.sanitize(displayedContent)}</span>`;
+        const bubbleContent =
+            document.createElement('span');
+
+        bubbleContent.className =
+    'bubble-content';
+
+        if (
+            window.WeChatEmoji &&
+            window.WeChatEmoji.isLoaded
+      ) {
+            window.WeChatEmoji.renderInto(
+                bubbleContent,
+                displayedContent
+         );
+        } else {
+            bubbleContent.textContent =
+                displayedContent;
+        }
+
+        bubbleElement.appendChild(
+            bubbleContent
+        );
         if (!chat.useCustomBubbleCss) {
             bubbleElement.style.backgroundColor = bubbleTheme.bg;
             bubbleElement.style.color = bubbleTheme.text;
@@ -1487,6 +1662,20 @@ const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
                 quoteDiv.className = 'quoted-message';
                 const sanitizedQuotedText = DOMPurify.sanitize(quote.content, { ALLOWED_TAGS: [] });
                 quoteDiv.innerHTML = `<span class="quoted-sender">回复 ${quotedSenderName}</span><p class="quoted-text">${sanitizedQuotedText}</p>`;
+
+
+                /* 微信黄豆：引用内容 */
+                if (
+                    window.WeChatEmoji &&
+                    window.WeChatEmoji.isLoaded &&
+                    typeof window.WeChatEmoji.renderInElement === 'function'
+                ) {
+                    window.WeChatEmoji.renderInElement(
+                        quoteDiv
+                    );
+                }
+
+
                 bubbleElement.prepend(quoteDiv);
             }
             contentContainer.appendChild(bubbleElement);
@@ -1515,6 +1704,20 @@ const contentMatch = content.match(/^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/);
                 quoteDiv.className = 'quoted-message';
                 const sanitizedQuotedText = DOMPurify.sanitize(quote.content, { ALLOWED_TAGS: [] });
                 quoteDiv.innerHTML = `<span class="quoted-sender">回复 ${quotedSenderName}</span><p class="quoted-text">${sanitizedQuotedText}</p>`;
+
+
+                /* 微信黄豆：引用内容 */
+                if (
+                    window.WeChatEmoji &&
+                    window.WeChatEmoji.isLoaded &&
+                    typeof window.WeChatEmoji.renderInElement === 'function'
+                ) {
+                    window.WeChatEmoji.renderInElement(
+                        quoteDiv
+                    );
+                }
+
+
                 bubbleElement.prepend(quoteDiv);
             }
             bubbleRow.appendChild(bubbleElement);

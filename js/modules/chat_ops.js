@@ -360,7 +360,22 @@ function startQuoteReply(messageId) {
     const previewBar = document.getElementById('reply-preview-bar');
     previewBar.querySelector('.reply-preview-name').textContent = `回复 ${senderName}`;
     previewBar.querySelector('.reply-preview-text').textContent = currentQuoteInfo.content;
-    previewBar.classList.add('visible');
+    const replyPreviewText =
+        previewBar.querySelector(
+            '.reply-preview-text'
+        );
+
+    if (
+        replyPreviewText &&
+        window.WeChatEmoji &&
+        window.WeChatEmoji.isLoaded &&
+        typeof window.WeChatEmoji.renderInElement === 'function'
+    ) {
+        window.WeChatEmoji.renderInElement(
+            replyPreviewText
+        );
+    }
+
     
     messageInput.focus();
 }

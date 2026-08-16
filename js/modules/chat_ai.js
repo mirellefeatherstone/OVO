@@ -434,6 +434,24 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
                 systemPrompt = "Group chat system prompt not available.";
             }
         }
+        /* =====================================================
+       微信黄豆表情能力
+       ===================================================== */
+
+        if (
+            window.WeChatEmoji &&
+            window.WeChatEmoji.isLoaded &&
+            typeof window.WeChatEmoji.getAiPrompt === 'function'
+        ) {
+            const wechatEmojiPrompt =
+                window.WeChatEmoji.getAiPrompt();
+
+            if (wechatEmojiPrompt) {
+                systemPrompt +=
+                    '\n\n' +
+                    wechatEmojiPrompt;
+            }
+        }
 
         // 检查是否开启了后台自动识图
         if (db.imageRecognitionEnabled) {

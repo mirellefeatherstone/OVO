@@ -2897,3 +2897,95 @@
 .voice-transcript > *:last-child {
     margin-bottom: 0;
 }
+/* =========================================================
+   微信老版黄豆表情 · 紧凑布局 v0.2
+   ========================================================= */
+
+#sticker-grid-container.wechat-emoji-mode {
+    display: grid;
+
+    /* 黄豆比普通 sticker 更密集 */
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+
+    column-gap: 0;
+    row-gap: 2px;
+
+    padding: 8px 6px 14px;
+
+    align-content: start;
+}
+
+
+/* ---------- 单个黄豆点击区域 ---------- */
+
+.wechat-emoji-item {
+    position: relative;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 100%;
+
+    /* 图片小，但点击区域不能太小 */
+    min-height: 44px;
+
+    cursor: pointer;
+
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+
+/* ---------- 黄豆本体 ---------- */
+
+.wechat-emoji-item img {
+    display: block;
+
+    width: 35px;
+    height: 35px;
+
+    object-fit: contain;
+
+    pointer-events: none;
+}
+
+
+/* ---------- 按压反馈 ---------- */
+
+.wechat-emoji-item:active img {
+    transform: scale(0.9);
+}
+
+
+/* ---------- 加载 / 错误提示 ---------- */
+
+.wechat-emoji-empty {
+    grid-column: 1 / -1;
+
+    margin: 0;
+    padding: 30px 20px;
+
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+}
+/* =========================================================
+   微信黄豆 · 聊天气泡行内显示
+   ========================================================= */
+
+.wechat-inline-emoji {
+    display: inline-block;
+
+    width: 1.35em;
+    height: 1.35em;
+
+    object-fit: contain;
+
+    vertical-align: -0.28em;
+
+    margin: 0 0.03em;
+
+    user-select: none;
+    pointer-events: none;
+}

@@ -42,6 +42,25 @@ function parseStickerText(text) {
 }
 
 async function setupStickerSystem() {
+
+    /* =====================================================
+       微信黄豆表情初始化
+       ===================================================== */
+
+    if (window.WeChatEmoji) {
+        try {
+            await window.WeChatEmoji.load();
+        } catch (error) {
+            console.error(
+                '[Sticker] 微信黄豆表情初始化失败：',
+                error
+            );
+        }
+    } else {
+        console.warn(
+            '[Sticker] 未找到 WeChatEmoji 模块'
+        );
+    }
     const stickerMenuBtn = document.getElementById('sticker-menu-btn');
     const stickerMenuActionSheet = document.getElementById('sticker-menu-actionsheet');
     const stickerCategoryBar = document.getElementById('sticker-category-bar');
@@ -923,6 +942,12 @@ function renderStickerCategories() {
     }
     const groups = [...activeGroups];
     
+    // 0. 微信老版黄豆
+createCategoryItem(bar, {
+    id: 'wechat',
+    name: '微信'
+});
+
     // 1. 最近使用
     createCategoryItem(bar, { id: 'recent', name: '最近使用' });
 
@@ -995,7 +1020,11 @@ function createCategoryItem(container, cat) {
     item.dataset.category = cat.id;
     
     // 绑定长按事件 (仅对非固定分类和未分类生效)
-    if (cat.id !== 'recent' && cat.id !== 'all') {
+    if (
+    cat.id !== 'wechat' &&
+    cat.id !== 'recent' &&
+    cat.id !== 'all'
+) {
         item.addEventListener('touchstart', (e) => {
             currentLongPressCategory = cat.id;
             categoryLongPressTimer = setTimeout(() => {
@@ -1049,9 +1078,89 @@ function createCategoryItem(container, cat) {
     container.appendChild(item);
 }
 
+/* =========================================================
+   微信老版黄豆表情网格
+   ========================================================= */
+
+function renderWechatEmojiGrid(container) {
+
+    if (!window.WeChatEmoji) {
+        container.innerHTML =
+            '<p class="wechat-emoji-empty">微信表情模块未加载</p>';
+        return;
+    }
+
+    if (!window.WeChatEmoji.isLoaded) {
+        container.innerHTML =
+            '<p class="wechat-emoji-empty">微信表情加载中...</p>';
+        return;
+    }
+
+    const emojis = window.WeChatEmoji.emojiList;
+
+    if (!emojis || emojis.length === 0) {
+        container.innerHTML =
+            '<p class="wechat-emoji-empty">没有找到微信表情</p>';
+        return;
+    }
+
+
+    emojis.forEach(emoji => {
+
+        const item = document.createElement('div');
+
+        item.className = 'wechat-emoji-item';
+        item.title = emoji.name;
+        item.dataset.token = emoji.token;
+
+
+        const img = document.createElement('img');
+
+        img.src = emoji.src;
+        img.alt = emoji.token;
+        img.draggable = false;
+
+
+        item.appendChild(img);
+
+
+        /*
+         * 微信黄豆与普通 sticker 完全不同：
+         *
+         * 普通 sticker：
+         * 点击 → 直接发送一条图片消息
+         *
+         * 微信黄豆：
+         * 点击 → 只往输入框插入 [微笑]
+         */
+        item.addEventListener('click', () => {
+            window.WeChatEmoji.insertToken(
+                emoji.token
+            );
+        });
+
+
+        container.appendChild(item);
+    });
+}
 function renderStickerGrid(searchQuery = '') {
     const container = document.getElementById('sticker-grid-container');
     container.innerHTML = '';
+
+    /* =====================================================
+       微信老版黄豆
+       ===================================================== */
+
+    container.classList.toggle(
+        'wechat-emoji-mode',
+        currentStickerCategory === 'wechat'
+    );
+
+    if (currentStickerCategory === 'wechat') {
+        renderWechatEmojiGrid(container);
+        return;
+    }
+
 
     let stickersToShow = [];
 

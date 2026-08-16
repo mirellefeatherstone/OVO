@@ -560,7 +560,21 @@ function renderChatList() {
                 <span class="item-time">${timeString}</span>
                 <span class="unread-badge ${unreadClass}">${unreadText}</span>
             </div>`;
+        const messagePreview =
+            li.querySelector(
+                '.item-preview'
+            );
 
+        if (
+            messagePreview &&
+            window.WeChatEmoji &&
+            window.WeChatEmoji.isLoaded &&
+            typeof window.WeChatEmoji.renderInElement === 'function'
+        ) {
+            window.WeChatEmoji.renderInElement(
+                messagePreview
+            );
+        }
         chatListContainer.appendChild(li);
     });
 }
