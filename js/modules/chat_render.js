@@ -363,7 +363,53 @@ function createMessageBubbleElement(message, isContinuous = false) {
             avatarClass += ' avatar-invisible';
         }
     }
+    const isBilingualMode = chat.bilingualModeEnabled;
+    let bilingualMatch = null;
 
+    // 双语翻译只认明确的 「中文翻译」 格式。
+    // 不再使用 () / （）作为翻译兜底，避免颜文字、括号补充说明被误判。
+    if (isBilingualMode && role === 'assistant' && !isThinking) {
+        const contentMatch = content.match(
+            /^\[.*?(?:消息|回复)[：:]([\s\S]+)\]$/
+        );
+
+        if (contentMatch) {
+            const mainText = contentMatch[1].trim();
+
+            // 翻译必须位于正文末尾：外语原文「中文翻译」
+            const lastCloseBracket = mainText.endsWith('」')
+                ? mainText.length - 1
+                : -1;
+
+            if (lastCloseBracket > -1) {
+                const lastOpenBracket = mainText.lastIndexOf(
+                    '「',
+                    lastCloseBracket
+                );
+
+                if (lastOpenBracket > -1) {
+                    const chineseText = mainText
+                        .substring(
+                            lastOpenBracket + 1,
+                            lastCloseBracket
+                        )
+                        .trim();
+
+                    const foreignText = mainText
+                        .substring(0, lastOpenBracket)
+                        .trim();
+
+                    if (foreignText && chineseText) {
+                        bilingualMatch = [
+                            null,
+                            foreignText,
+                            chineseText
+                        ];
+                    }
+                }
+            }
+        }
+    }
     
 
             
