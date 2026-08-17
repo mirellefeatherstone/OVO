@@ -1,0 +1,28 @@
+{
+  "name": "ovo-web-clean",
+  "version": "1.0.0",
+  "description": "",
+  "main": "sw.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "websync": "rm -rf www && mkdir www && cp index.html style.css contacts.css more_menu.css manifest.json sw.js www/ && cp -R js css assets custom www/",
+    "iossync": "npm run websync && npx cap sync ios"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mirellefeatherstone/OVO.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mirellefeatherstone/OVO/issues"
+  },
+  "homepage": "https://github.com/mirellefeatherstone/OVO#readme",
+  "dependencies": {
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/ios": "^8.5.0"
+  }
+}
