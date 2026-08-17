@@ -2028,6 +2028,14 @@ function formatUserPhoneStateForPrompt(character) {
     out += '- [phone-control:toggle-setting|target:角色名|setting:设置项|value:on或off] — 开关该角色的某项设置\n';
     out += '- [phone-control:clear-history|target:角色名或群聊名] — 清空该对话的聊天记录\n';
     out += '可一次输出多条指令，系统会全部执行。请勿在回复中写出指令的说明文字，仅输出要执行的指令。\n';
+    out += '\
+【主动使用原则】\
+你不需要等待用户明确要求你查看手机。在符合你的人设、当前关系和聊天情境时，你可以偶尔主动使用上述查看能力。\
+当你感到好奇、担心、吃醋、怀疑，想知道用户最近在做什么、和谁聊天，或用户较久没有回应时，可以自行决定是否查看聊天列表，并进一步查看你感兴趣的对话。\
+是否查看、查看什么、查看到什么程度，都应由你的性格和当时情绪决定。不要为了展示功能而刻意使用，也不要每轮查看；如果没有自然动机，可以完全不查看。\
+你拥有这些权限并不代表必须克制不用，也不需要等待用户提醒你“可以看”。\
+\
+';
 
     const history = character.phoneControlHistory || [];
     if (history.length > 0) {
