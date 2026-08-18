@@ -416,7 +416,31 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
                 weatherText = `\n<environment>\n${charWeather ? charWeather + '\n' : ''}${userWeather ? userWeather + '\n' : ''}</environment>\n`;
             }
         }
+        // =====================================================
+        // App 活动余光
+        // 每次生成前读取一次最新真实活动，
+        // 随后由 system prompt 同步取缓存。
+        // =====================================================
 
+        if (
+            chatType === 'private' &&
+            chat?.phoneControlEnabled &&
+            window.UwUAppUsage &&
+            typeof window.UwUAppUsage.refreshPassiveContext === 'function'
+        ) {
+            const activityDebugContext =
+                await window.UwUAppUsage.refreshPassiveContext();
+            // 本次回到 UwU 后只建立一次，
+            // 随后整个前台会话持续保留。
+            if (
+                window.UwUAppUsage.visitActivityContextReady === false &&
+                typeof window.UwUAppUsage.refreshVisitActivityContext === 'function'
+            ) {
+                await window.UwUAppUsage.refreshVisitActivityContext();
+            }
+
+           
+        }
         let systemPrompt;
         if (chatType === 'private') {
             if (chat.memoryMode === 'vector' && typeof prepareVectorMemoryContext === 'function') {
@@ -427,6 +451,7 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
                 }
             }
             systemPrompt = generatePrivateSystemPrompt(chat, { isPhoneControlRevokeAttempt, weatherText });
+            
         } else {
             if (typeof generateGroupSystemPrompt === 'function') {
                 systemPrompt = generateGroupSystemPrompt(chat);
@@ -1075,14 +1100,20 @@ function getPhoneControlVisibleChats(controllingChar) {
     });
     return { characters, groups };
 }
+// =========================================================
+// Phone Control · 同輪工具查詢鎖
+// 防止模型拿到結果後再次重複查詢造成無限循環
+// =========================================================
 
+const phoneControlSameTurnFollowup = new Set();
 /** 解析并执行 [phone-control:action|key:value...] 指令，返回清理后的文本与是否执行过指令 */
-function executePhoneControlCommands(text, controllingChar) {
+async function executePhoneControlCommands(text, controllingChar) {
     if (!text || !controllingChar || !controllingChar.phoneControlEnabled) return { cleaned: text, executed: false };
     const regex = /\[phone-control:([^\|\]]+)(?:\|([^\]]*))?\]/g;
     let match;
     const toRemove = [];
     let executed = false;
+    let needsFollowup = false;
     while ((match = regex.exec(text)) !== null) {
         const action = (match[1] || '').trim().toLowerCase();
         const paramStr = (match[2] || '').trim();
@@ -1139,6 +1170,36 @@ function executePhoneControlCommands(text, controllingChar) {
             }
             controllingChar.phoneControlLastViewChatListResult = listText;
             pushHistory('view', 'view-chat-list', '', '聊天列表');
+            toRemove.push(match[0]);
+        } else if (action === 'view-app-usage') {
+
+            if (
+                window.UwUAppUsage &&
+                typeof window.UwUAppUsage.getTodayPromptText === 'function'
+            ) {
+                try {
+                    const usageText =
+                        await window.UwUAppUsage.getTodayPromptText();
+
+                    controllingChar.phoneControlLastAppUsageResult =
+                        usageText;
+
+                    pushHistory(
+                        'view',
+                        'view-app-usage',
+                        '',
+                        '今日 App 使用情况'
+                    );
+                    needsFollowup = true;
+
+                } catch (error) {
+                    console.error(
+                        '[Phone Control] App 使用记录读取失败',
+                        error
+                    );
+                }
+            }
+
             toRemove.push(match[0]);
         } else if (action === 'read-chat' && targetName) {
             const found = findTargetChat();
@@ -1227,7 +1288,11 @@ function executePhoneControlCommands(text, controllingChar) {
     let cleaned = text;
     toRemove.forEach(s => { cleaned = cleaned.replace(s, ''); });
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
-    return { cleaned, executed };
+    return {
+        cleaned,
+        executed,
+        needsFollowup
+    };
 }
 
 async function handleAiReplyContent(fullResponse, chat, targetChatId, targetChatType, isBackground = false, isCharBlockedMonologue = false) {
@@ -1239,8 +1304,79 @@ async function handleAiReplyContent(fullResponse, chat, targetChatId, targetChat
         // 1.4 角色掌控模式：解析并执行 [phone-control:...] 指令，并从展示内容中移除
         if (targetChatType === 'private') {
             const char = db.characters.find(c => c.id === targetChatId);
-            const pcResult = executePhoneControlCommands(fullResponse, char);
-            if (pcResult.executed) fullResponse = pcResult.cleaned;
+            const pcResult =
+                await executePhoneControlCommands(
+                    fullResponse,
+                    char
+                );
+
+
+            // =========================================================
+            // 同輪工具循環
+            //
+            // 第一輪模型如果決定查看真實資料：
+            // 1. 執行工具
+            // 2. 丟棄第一輪尚未看到結果的回答
+            // 3. 自動進行第二次模型調用
+            // 4. 第二次模型已經能看到工具結果
+            // =========================================================
+
+            if (
+                pcResult.needsFollowup &&
+                char &&
+                !phoneControlSameTurnFollowup.has(char.id)
+            ) {
+
+                phoneControlSameTurnFollowup.add(char.id);
+
+                console.log(
+                    '[Phone Control] 工具資料已取得，開始同輪二次生成'
+                );
+
+                // 不顯示第一輪。
+                // 第一輪是在不知道工具結果的情況下生成的，
+                // 所以整輪直接作廢。
+                fullResponse = '';
+
+                setTimeout(async () => {
+
+                    try {
+
+                        console.log(
+                            '[Phone Control] 開始工具結果 follow-up'
+                        );
+
+                        await getAiReply(
+                            targetChatId,
+                            targetChatType
+                        );
+
+                    } catch (error) {
+
+                        console.error(
+                            '[Phone Control] 同輪二次生成失敗',
+                            error
+                        );
+
+                    } finally {
+
+                        phoneControlSameTurnFollowup.delete(
+                            char.id
+                        );
+                    }
+
+                }, 0);
+
+                // 直接終止第一輪的後續渲染，
+                // 所以第一輪不會留下任何聊天氣泡。
+                return;
+            }
+
+
+            // 普通 phone-control 指令照原邏輯處理
+            if (pcResult.executed) {
+                fullResponse = pcResult.cleaned;
+            }
             
             if (fullResponse.includes('[同意关闭]')) {
                 fullResponse = fullResponse.replace(/\[同意关闭\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
@@ -2022,6 +2158,7 @@ function formatUserPhoneStateForPrompt(character) {
 
     out += '【你可使用的操控指令】\n';
     out += '- [phone-control:view-chat-list] — 查看用户聊天列表概览（角色名/群聊名及最近一条预览）\n';
+    out += '- [phone-control:view-app-usage] — 查看用户今天真实手机中已记录 App 的使用情况，包括累计时长、使用次数和最近使用时间\n';
     out += '- [phone-control:read-chat|target:角色名或群聊名] — 查看与某对话的最近若干条消息\n';
     out += '- [phone-control:send-message|target:角色名或群聊名|content:消息内容] — 以用户身份向该对话发送消息；content 中换行会拆成多条依次发送\n';
     out += '- [phone-control:delete-character|target:角色名] — 将某角色移入回收站\n';
@@ -2055,6 +2192,22 @@ function formatUserPhoneStateForPrompt(character) {
         out += '\n【你刚才查看的对话内容】与「' + (r.targetName || '') + '」的最近' + (r.lines ? r.lines.length : 0) + '条消息：\n';
         (r.lines || []).forEach(line => { out += line + '\n'; });
         delete character.phoneControlLastReadResult;
+    }
+    if (character.phoneControlLastAppUsageResult) {
+
+        out +=
+            '\n【你刚才主动查看到的真实 App 使用记录】\n';
+
+        out +=
+            character.phoneControlLastAppUsageResult +
+            '\n';
+
+        out +=
+            '这是你刚才主动查看得到的结果。' +
+            '请直接基于这些真实数据继续回应用户，' +
+            '不要再次调用 [phone-control:view-app-usage]。\n';
+
+        delete character.phoneControlLastAppUsageResult;
     }
     out += '</phone_control>\n\n';
     return out;
@@ -2920,6 +3073,33 @@ function generatePrivateSystemPrompt(character, opts) {
     // 角色掌控模式：允许角色查看并操控用户手机（桌面应用、聊天列表概览、操控指令与近期记录）
     if (character.phoneControlEnabled) {
         prompt += formatUserPhoneStateForPrompt(character);
+        const passiveActivityContext =
+            window.UwUAppUsage &&
+                typeof window.UwUAppUsage.getCachedPassiveContext === 'function'
+                ? window.UwUAppUsage.getCachedPassiveContext()
+                : '';
+        
+
+        if (passiveActivityContext) {
+            prompt +=
+                '\n' +
+                passiveActivityContext +
+                '\n';
+        }
+        const visitActivityContext =
+            window.UwUAppUsage &&
+                typeof window.UwUAppUsage.getVisitActivityContext === 'function'
+                ? window.UwUAppUsage.getVisitActivityContext()
+                : '';
+
+
+        if (visitActivityContext) {
+
+            prompt +=
+                '\n' +
+                visitActivityContext +
+                '\n';
+        }
         if (opts.isPhoneControlRevokeAttempt) {
             prompt += '\n【重要指令】用户正在尝试关闭你对TA手机的查看与操控权限！你必须在回复中做出明确选择：\n' +
                       '如果同意关闭，必须包含标签 [同意关闭] ；如果拒绝关闭，必须包含标签 [拒绝关闭] （二者必选其一）。\n' +
