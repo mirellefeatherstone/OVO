@@ -145,6 +145,15 @@ const init = async () => {
     updateClock();
     setInterval(updateClock, 30000);
     setInterval(checkAutoReply, 60000);
+    setInterval(checkRealityProactive, 60000);
+    setTimeout(checkRealityProactive, 5000);
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            setTimeout(checkRealityProactive, 1200);
+            window.UwUNotionSharedContextSync.sync();
+        }
+    });
 
     // 应用全局设置
     if (db.fontUrl === 'local' && db.fontBuffer) {
@@ -168,6 +177,8 @@ const init = async () => {
     setupChatSettings();
     setupArchiveApp();
     setupApiSettingsApp();
+    window.UwUSharedContext.setupSettings();
+    window.UwUNotionSharedContextSync.init();
     setupWallpaperApp();
     await setupStickerSystem();
     setupPresetFeatures();
@@ -309,6 +320,110 @@ async function checkAutoReply() {
                 await getAiReply(char.id, 'private', true);
             }
         }
+    }
+}
+
+let realityProactiveCheckRunning = false;
+
+async function checkRealityProactive() {
+    if (realityProactiveCheckRunning) return;
+
+    if (
+        !window.UwUEventBus ||
+        typeof window.UwUEventBus.getPendingEvents !== 'function'
+    ) {
+        return;
+    }
+
+    realityProactiveCheckRunning = true;
+
+    try {
+        const characters = (db.characters || [])
+            .filter(character =>
+                character.phoneControlEnabled &&
+                !character.isBlocked
+            );
+
+        for (const character of characters) {
+            // 旧 autoReply 开关与这里无关；只复用用户已经设置的
+            // 免打扰时段，避免半夜因为现实事件主动发消息。
+            if (
+                typeof isInQuietHours === 'function' &&
+                isInQuietHours(character.id)
+            ) {
+                continue;
+            }
+
+            const events =
+                await window.UwUEventBus
+                    .getPendingEvents(character.id);
+            const event = events[0];
+
+            if (!event) continue;
+
+            try {
+                const decision = await getAiReply(
+                    character.id,
+                    'private',
+                    true,
+                    false,
+                    false,
+                    false,
+                    {
+                        phase: 'decision',
+                        event
+                    }
+                );
+
+                if (decision !== 'respond') {
+                    window.UwUEventBus
+                        .markHandled(
+                            event,
+                            character.id,
+                            'ignore'
+                        );
+                    continue;
+                }
+
+                const sent = await getAiReply(
+                    character.id,
+                    'private',
+                    true,
+                    false,
+                    false,
+                    false,
+                    {
+                        phase: 'response',
+                        event
+                    }
+                );
+
+                if (!sent) {
+                    throw new Error(
+                        'Reality proactive 消息未完成投递'
+                    );
+                }
+
+                window.UwUEventBus
+                    .markHandled(
+                        event,
+                        character.id,
+                        'respond'
+                    );
+
+            } catch (error) {
+                console.warn(
+                    '[UwU Reality Proactive] 本次唤醒失败，15 分钟后重试：',
+                    error
+                );
+                window.UwUEventBus.defer(
+                    event,
+                    character.id
+                );
+            }
+        }
+    } finally {
+        realityProactiveCheckRunning = false;
     }
 }
 

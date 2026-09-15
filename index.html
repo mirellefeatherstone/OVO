@@ -2812,6 +2812,48 @@
                             
                             <p style="font-size: 12px; color: #999; margin-top: 10px;">保存请点击上方「保存 TTS 配置」按钮</p>
                         </div>
+
+                        <div class="kkt-group" style="margin-top: 30px;">
+                            <div class="kkt-item">
+                                <div class="kkt-item-label">Shared Context 角色可见</div>
+                                <div class="kkt-item-control">
+                                    <label class="kkt-switch">
+                                        <input type="checkbox" id="shared-context-enabled">
+                                        <span class="kkt-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <p style="font-size:12px;color:#999;margin:10px 15px 0;">关闭后不再注入角色聊天；本地记录与 Notion 同步进度会保留。</p>
+                        </div>
+
+                        <div class="kkt-group" style="margin-top: 30px;">
+                            <div class="kkt-item">
+                                <div class="kkt-item-label">Notion Shared Context</div>
+                                <div class="kkt-item-control">
+                                    <label class="kkt-switch">
+                                        <input type="checkbox" id="notion-shared-context-enabled">
+                                        <span class="kkt-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="kkt-item">
+                                <div class="kkt-item-label">Data Source ID</div>
+                                <div class="kkt-item-control">
+                                    <input type="text" id="notion-shared-context-data-source-id" autocomplete="off"
+                                        style="text-align:right; border:none; background:transparent; width: 100%;">
+                                </div>
+                            </div>
+                            <div class="kkt-item">
+                                <div class="kkt-item-label">Notion Token</div>
+                                <div class="kkt-item-control">
+                                    <input type="password" id="notion-shared-context-token" autocomplete="new-password"
+                                        style="text-align:right; border:none; background:transparent; width: 100%;">
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-primary" id="notion-shared-context-save"
+                                style="margin-top: 15px; width: 100%;">保存并同步</button>
+                            <p id="notion-shared-context-status" style="font-size:12px;color:#999;text-align:center;">尚未同步</p>
+                        </div>
                     </div>
                 </div>
             </main>
@@ -10258,6 +10300,8 @@
     <script src="js/modules/chat_list.js"></script>
     <script src="js/modules/character_import.js"></script>
     <script src="js/modules/chat_render.js"></script>
+    <script src="js/modules/shared_context.js"></script> <!-- 外部共享上下文（仅本地读取与被动注入） -->
+    <script src="js/modules/notion_shared_context_sync.js"></script> <!-- Notion Shared Context 增量同步 -->
     <script src="js/modules/chat_ai.js"></script>
     <script src="js/modules/chat_features.js"></script>
     <script src="js/modules/avatar_recognition.js"></script>
@@ -10287,7 +10331,9 @@
     <script src="js/modules/regex_filter.js"></script> <!-- 正则过滤模块 -->
     <script src="js/modules/favorites.js"></script> <!-- 消息收藏 -->
     <script src="js/modules/search.js"></script> <!-- 聊天记录搜索模块 -->
-    <script src="js/modules/battery_interaction.js"></script> <!-- 电量交互模块 -->
+    <script src="js/event_bus.js"></script> <!-- 现实感知统一事件总线 -->
+    <script src="js/app_usage.js"></script> <!-- App Activity producer -->
+    <script src="js/modules/battery_interaction.js"></script> <!-- 原生电量 producer -->
     <script src="js/modules/gallery.js"></script> <!-- 角色相册管理模块 -->
     <script src="js/modules/live.js"></script> <!-- 直播间模块 -->
     <script src="js/modules/shop.js"></script> <!-- 商城模块 -->
@@ -10307,7 +10353,6 @@
     <script src="js/main.js"></script> <!-- 主入口：初始化(init)、全局事件监听 -->
     <script type="module" src="custom/js/index.js?v=sticky-flow-1"></script> <!-- Mirelle 自定义补丁入口 -->
 <script src="js/native_backup.js"></script>
-<script src="js/app_usage.js"></script>
 </body>
 
 </html>

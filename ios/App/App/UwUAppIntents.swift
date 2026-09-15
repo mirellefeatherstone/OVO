@@ -2,6 +2,104 @@ import AppIntents
 import Foundation
 
 
+enum AppUsageLogStore {
+
+    private static func fileURL() throws -> URL {
+        let documentsURL = FileManager.default.urls(
+            for: .documentDirectory,
+            in: .userDomainMask
+        )[0]
+        let folderURL = documentsURL.appendingPathComponent(
+            "UwU Data",
+            isDirectory: true
+        )
+
+        try FileManager.default.createDirectory(
+            at: folderURL,
+            withIntermediateDirectories: true
+        )
+
+        let url = folderURL.appendingPathComponent("app_usage_log.jsonl")
+        if !FileManager.default.fileExists(atPath: url.path) {
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+        }
+        return url
+    }
+
+    private static func withCoordinatedFile<T>(
+        _ body: (URL) throws -> T
+    ) throws -> T {
+        let url = try fileURL()
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        var result: Result<T, Error>?
+
+        coordinator.coordinate(
+            writingItemAt: url,
+            options: [],
+            error: &coordinationError
+        ) { coordinatedURL in
+            result = Result {
+                try body(coordinatedURL)
+            }
+        }
+
+        if let coordinationError {
+            throw coordinationError
+        }
+        guard let result else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        return try result.get()
+    }
+
+    static func append(_ data: Data) throws {
+        try withCoordinatedFile { url in
+            let handle = try FileHandle(forWritingTo: url)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: data)
+            try handle.synchronize()
+        }
+    }
+
+    static func repairMalformedLines() throws -> Int {
+        try withCoordinatedFile { url in
+            let handle = try FileHandle(forUpdating: url)
+            defer { try? handle.close() }
+            try handle.seek(toOffset: 0)
+            let data = try handle.readToEnd() ?? Data()
+            guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else {
+                return 0
+            }
+
+            let lines = text
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .map(String.init)
+            let validLines = lines.filter { line in
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return false }
+                return (try? JSONSerialization.jsonObject(with: Data(trimmed.utf8))) != nil
+            }
+            let nonemptyCount = lines.reduce(into: 0) { count, line in
+                if !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    count += 1
+                }
+            }
+            let malformedCount = nonemptyCount - validLines.count
+            guard malformedCount > 0 else { return 0 }
+
+            let repaired = Data((validLines.joined(separator: "\n") + "\n").utf8)
+            try handle.truncate(atOffset: 0)
+            try handle.seek(toOffset: 0)
+            try handle.write(contentsOf: repaired)
+            try handle.synchronize()
+            return malformedCount
+        }
+    }
+}
+
+
 // =========================================================
 // App 活动类型
 // =========================================================
@@ -91,62 +189,12 @@ struct LogAppActivityIntent: AppIntent {
             )
         }
 
-
-        // ---------- Documents/UwU Data ----------
-
-        let fileManager =
-            FileManager.default
-
-        let documentsURL =
-            fileManager.urls(
-                for: .documentDirectory,
-                in: .userDomainMask
-            )[0]
-
-        let folderURL =
-            documentsURL.appendingPathComponent(
-                "UwU Data",
-                isDirectory: true
-            )
-
-        try fileManager.createDirectory(
-            at: folderURL,
-            withIntermediateDirectories: true
-        )
-
-        let fileURL =
-            folderURL.appendingPathComponent(
-                "app_usage_log.jsonl"
-            )
-
-
         // ---------- 追加一行 ----------
 
         let lineData =
             Data((jsonLine + "\n").utf8)
 
-        if fileManager.fileExists(
-            atPath: fileURL.path
-        ) {
-
-            let handle = try FileHandle(
-                forWritingTo: fileURL
-            )
-
-            try handle.seekToEnd()
-            try handle.write(
-                contentsOf: lineData
-            )
-
-            try handle.close()
-
-        } else {
-
-            try lineData.write(
-                to: fileURL,
-                options: .atomic
-            )
-        }
+        try AppUsageLogStore.append(lineData)
 
 
         print(

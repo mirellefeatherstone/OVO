@@ -7897,15 +7897,9 @@ function updateStatusBarPreviewInSettings() {
     const timeEl = document.getElementById('statusbar-preview-time');
     if (timeEl) timeEl.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
-    if ('getBattery' in navigator) {
-        navigator.getBattery().then(battery => {
-            const level = Math.floor(battery.level * 100);
-            const levelEl = document.getElementById('statusbar-preview-level');
-            const fillEl = document.getElementById('statusbar-preview-battery-fill');
-            if (levelEl) levelEl.textContent = `${level}%`;
-            if (fillEl) fillEl.setAttribute('width', 18 * battery.level);
-        }).catch(() => {});
-    }
+    window.BatteryInteraction?.getStatus?.().then(() => {
+        window.BatteryInteraction.updateBatteryDisplays();
+    });
 }
 
 function applyHomeStatusBar() {
@@ -7949,21 +7943,10 @@ function applyHomeStatusBar() {
     };
     updateBar();
 
-    // 更新电量
-    if ('getBattery' in navigator) {
-        navigator.getBattery().then(battery => {
-            const updateBat = () => {
-                const level = Math.floor(battery.level * 100);
-                const levelEl = bar.querySelector('.htsb-battery-level');
-                const fillEl = bar.querySelector('.htsb-battery-fill');
-                if (levelEl) levelEl.textContent = `${level}%`;
-                if (fillEl) fillEl.setAttribute('width', 18 * battery.level);
-            };
-            updateBat();
-            battery.addEventListener('levelchange', updateBat);
-            battery.addEventListener('chargingchange', updateBat);
-        }).catch(() => {});
-    }
+    // 更新原生电量
+    window.BatteryInteraction?.getStatus?.().then(() => {
+        window.BatteryInteraction.updateBatteryDisplays();
+    });
 
     // 自定义CSS
     let styleEl = document.getElementById('home-statusbar-custom-style');

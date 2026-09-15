@@ -244,8 +244,61 @@ async function generateImageDescription(msg, chat, apiConfig) {
     }
 }
 
+function buildActivityProactiveTask(chat, task) {
+    if (!task?.event) return '';
+
+    const event = task.event;
+    const eventText = [
+        `事件来源：${event.source || 'unknown'}`,
+        `事件类型：${event.type}`,
+        event.payload?.appName
+            ? `相关 App：${event.payload.appName}`
+            : '',
+        `现实变化：${event.summary}`,
+        `重要程度：${Number(event.significance || 0).toFixed(2)}`
+    ].filter(Boolean).join('\n');
+
+    if (task.phase === 'decision') {
+        return [
+            '<reality_proactive_decision>',
+            eventText,
+            '',
+            '这是独立的新事件，不是要求你继续回复历史里最后一条用户消息。',
+            '请根据人物性格、当前关系、最近聊天与事件重要程度，决定是否现在主动联系用户。',
+            '不值得打扰、时机不合适或按人设不想管，就选择 ignore；确实想现在开口才选择 respond。',
+            '最终只能单独输出一行：respond 或 ignore。',
+            '</reality_proactive_decision>'
+        ].join('\n');
+    }
+
+    return [
+        '<reality_proactive_response>',
+        eventText,
+        '',
+        '你已经自主决定现在主动联系用户。请以平时的聊天口吻自然开口。',
+        '本次唯一需要回应的是这条现实事件。历史聊天只用于理解关系与语境，禁止重新回答、改写或复述最后一条用户消息。',
+        '事件材料已经完整提供，本轮禁止调用 phone-control 或其他工具；必须直接生成至少一条用户可见消息。',
+        '不要暴露系统标签、事件类型、重要程度、监测机制或判断过程，也不要写成屏幕使用时间报告。',
+        '</reality_proactive_response>'
+    ].join('\n');
+}
+
+function parseActivityProactiveDecision(text) {
+    const cleaned = String(text || '')
+        .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+        .replace(/\[finire\]/gi, '')
+        .trim();
+    const lines = cleaned
+        .split(/\r?\n/)
+        .map(line => line.trim().toLowerCase())
+        .filter(Boolean);
+    const finalLine = lines[lines.length - 1] || '';
+
+    return finalLine === 'respond' ? 'respond' : 'ignore';
+}
+
 // AI 交互逻辑
-async function getAiReply(chatId, chatType, isBackground = false, isSummary = false, isCharBlockedMonologue = false, isPhoneControlRevokeAttempt = false) {
+async function getAiReply(chatId, chatType, isBackground = false, isSummary = false, isCharBlockedMonologue = false, isPhoneControlRevokeAttempt = false, activityProactiveTask = null) {
     if (isGenerating && !isBackground) return;
 
     // 拉黑检查：被拉黑的角色不回复（角色拉黑用户后的「让TA说说」不在此列）
@@ -280,9 +333,16 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
     }
     
     let {url, key, model, provider} = apiConfig;
-    let streamEnabled = db.apiSettings.streamEnabled; // 流式输出始终使用主API的设置
+    // Proactive 两阶段都需要拿到完整结果并确认实际落库；后台不需要流式展示。
+    let streamEnabled = activityProactiveTask
+        ? false
+        : db.apiSettings.streamEnabled;
     
     if (!url || !key || !model) {
+        if (activityProactiveTask) {
+            throw new Error('Reality proactive API 未配置');
+        }
+
         if (!isBackground) {
             showToast('请先在“api”应用中完成设置！');
             switchScreen('api-settings-screen');
@@ -293,6 +353,10 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
     // 确保 BLOCKED_API_DOMAINS 存在
     const blockedDomains = (typeof BLOCKED_API_DOMAINS !== 'undefined') ? BLOCKED_API_DOMAINS : [];
     if (blockedDomains.some(domain => url.includes(domain))) {
+        if (activityProactiveTask) {
+            throw new Error('Reality proactive API 已被屏蔽');
+        }
+
         if (!isBackground) showToast('当前 API 站点已被屏蔽，无法发送消息！');
         return;
     }
@@ -303,6 +367,9 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
 
     const chat = (chatType === 'private') ? db.characters.find(c => c.id === chatId) : db.groups.find(g => g.id === chatId);
     if (!chat) return;
+    const proactiveHistoryStart = activityProactiveTask?.phase === 'response'
+        ? chat.history.length
+        : -1;
 
     if (!isBackground) {
         currentReplyAbortController = new AbortController();
@@ -399,7 +466,9 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
         // 使用工具函数进行过滤（包含深度克隆、屏蔽过滤、双语修正、状态栏剔除）
         historySlice = filterHistoryForAI(chat, historySlice);
         // 【新增】过滤掉不应进入上下文的消息（如思考过程、被撤回的消息标记等）
-        historySlice = historySlice.filter(m => !m.isContextDisabled);
+        historySlice = historySlice.filter(m => (
+            !m.isContextDisabled && !m.isStatusUpdate
+        ));
         
         // 【双重保险】再次过滤掉内容匹配 <thinking> 的消息，防止 isContextDisabled 属性丢失
         historySlice = historySlice.filter(m => {
@@ -428,11 +497,11 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
             window.UwUAppUsage &&
             typeof window.UwUAppUsage.refreshPassiveContext === 'function'
         ) {
-            const activityDebugContext =
-                await window.UwUAppUsage.refreshPassiveContext();
+            await window.UwUAppUsage.refreshPassiveContext();
             // 本次回到 UwU 后只建立一次，
             // 随后整个前台会话持续保留。
             if (
+                !activityProactiveTask &&
                 window.UwUAppUsage.visitActivityContextReady === false &&
                 typeof window.UwUAppUsage.refreshVisitActivityContext === 'function'
             ) {
@@ -441,8 +510,24 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
 
            
         }
+        const includeCrossAppContext =
+            chatType === 'private' &&
+            !isBackground &&
+            !isSummary &&
+            !isCharBlockedMonologue &&
+            !activityProactiveTask;
+        let crossAppRecentContext = '';
+        if (includeCrossAppContext && typeof window.UwUCrossAppContext?.refresh === 'function') {
+            try {
+                crossAppRecentContext = await window.UwUCrossAppContext.refresh(chat, chatType);
+            } catch (error) {
+                console.warn('[UwU cross-app context] Refresh failed:', error);
+            }
+        }
+
         let systemPrompt;
         if (chatType === 'private') {
+            await window.UwUSharedContext.init();
             if (chat.memoryMode === 'vector' && typeof prepareVectorMemoryContext === 'function') {
                 try {
                     await prepareVectorMemoryContext(chat);
@@ -450,7 +535,16 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
                     console.warn('[VectorMemory] failed to prepare prompt context:', error);
                 }
             }
-            systemPrompt = generatePrivateSystemPrompt(chat, { isPhoneControlRevokeAttempt, weatherText });
+            systemPrompt = generatePrivateSystemPrompt(chat, {
+                isPhoneControlRevokeAttempt,
+                weatherText,
+                includeSharedContext:
+                    !isBackground &&
+                    !isSummary &&
+                    !isCharBlockedMonologue &&
+                    !activityProactiveTask
+            });
+            if (crossAppRecentContext) systemPrompt += `\n\n${crossAppRecentContext}`;
             
         } else {
             if (typeof generateGroupSystemPrompt === 'function') {
@@ -517,7 +611,14 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
 
         if (provider === 'gemini') {
             let lastMsgTimeForAI = 0;
-            const contents = historySlice.map(msg => {
+            let lastModelMessageIndex = -1;
+            for (let i = historySlice.length - 1; i >= 0; i--) {
+                if (historySlice[i].role === 'assistant' || historySlice[i].role === 'char') {
+                    lastModelMessageIndex = i;
+                    break;
+                }
+            }
+            const contents = historySlice.map((msg, messageIndex) => {
                 const role = (msg.role === 'assistant' || msg.role === 'char') ? 'model' : 'user';
                 let prefix = '';
                 const currentMsgTime = msg.timestamp;
@@ -551,6 +652,8 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
                         } else if (p.type === 'image') {
                             if (p.description) {
                                 return {text: `[图片描述：${p.description}]`};
+                            } else if (messageIndex <= lastModelMessageIndex) {
+                                return {text: `[历史图片：未保存画面描述]`};
                             } else {
                                 const match = p.data.match(/^data:(image\/(.+));base64,(.*)$/);
                                 if (match) {
@@ -629,7 +732,14 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
             if (isBackground) {
                 contents.push({
                     role: 'user',
-                    parts: [{ text: `[系统通知：距离上次互动已有一段时间。请以${chat.realName}的身份主动发起新话题，或自然地延续之前的对话。]` }]
+                    parts: [{
+                        text: activityProactiveTask
+                            ? buildActivityProactiveTask(
+                                chat,
+                                activityProactiveTask
+                            )
+                            : `[系统通知：距离上次互动已有一段时间。请以${chat.realName}的身份主动发起新话题，或自然地延续之前的对话。]`
+                    }]
                 });
             }
             if (isCharBlockedMonologue) {
@@ -793,7 +903,12 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
             if (isBackground) {
                 messages.push({
                     role: 'user',
-                    content: `[系统通知：距离上次互动已有一段时间。请以${chat.realName}的身份主动发起新话题，或自然地延续之前的对话。]`
+                    content: activityProactiveTask
+                        ? buildActivityProactiveTask(
+                            chat,
+                            activityProactiveTask
+                        )
+                        : `[系统通知：距离上次互动已有一段时间。请以${chat.realName}的身份主动发起新话题，或自然地延续之前的对话。]`
                 });
             }
             if (isCharBlockedMonologue) {
@@ -912,7 +1027,10 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
         }
         }
         console.log('[DEBUG] AutoReply Request Body:', JSON.stringify(requestBody));
-        const endpoint = (provider === 'gemini') ? `${url}/v1beta/models/${model}:streamGenerateContent?key=${getRandomValue(key)}` : `${url}/v1/chat/completions`;
+        const geminiMethod = activityProactiveTask?.phase === 'decision'
+            ? 'generateContent'
+            : 'streamGenerateContent';
+        const endpoint = (provider === 'gemini') ? `${url}/v1beta/models/${model}:${geminiMethod}?key=${getRandomValue(key)}` : `${url}/v1/chat/completions`;
         const headers = (provider === 'gemini') ? {'Content-Type': 'application/json'} : {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${key}`
@@ -947,6 +1065,11 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
                 fullResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
             } else {
                 fullResponse = result.choices[0].message.content;
+            }
+
+            // 判断任务到这里就结束，绝不能进入消息解析与投递。
+            if (activityProactiveTask?.phase === 'decision') {
+                return parseActivityProactiveDecision(fullResponse);
             }
             
             // === 【补丁：把被吃掉的开头补回来】 ===
@@ -983,10 +1106,52 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
             // ===================================
             
             
-            await handleAiReplyContent(fullResponse, chat, chatId, chatType, isBackground, isCharBlockedMonologue);
+            await handleAiReplyContent(
+                fullResponse,
+                chat,
+                chatId,
+                chatType,
+                isBackground,
+                isCharBlockedMonologue,
+                activityProactiveTask
+            );
+        }
+
+        if (activityProactiveTask?.phase === 'response') {
+            const deliveredMessages = chat.history
+                .slice(proactiveHistoryStart)
+                .filter(message =>
+                    message?.role === 'assistant' &&
+                    !message.isThinking &&
+                    !message.isContextDisabled &&
+                    String(message.content || '').trim()
+                );
+
+            if (deliveredMessages.length === 0) {
+                throw new Error(
+                    'Reality proactive 响应未生成可见消息'
+                );
+            }
+
+            if (chatType === 'private' && typeof saveCharacter === 'function') {
+                await saveCharacter(chatId);
+            }
+
+            console.log(
+                '[UwU Reality Proactive] 消息已完成投递',
+                {
+                    characterId: chatId,
+                    messageCount: deliveredMessages.length
+                }
+            );
+            return true;
         }
 
     } catch (error) {
+        if (activityProactiveTask) {
+            throw error;
+        }
+
         if (error.name === 'AbortError') {
             if (!isBackground && typeof showToast === 'function') showToast('已暂停调用');
         } else {
@@ -1295,11 +1460,17 @@ async function executePhoneControlCommands(text, controllingChar) {
     };
 }
 
-async function handleAiReplyContent(fullResponse, chat, targetChatId, targetChatType, isBackground = false, isCharBlockedMonologue = false) {
+async function handleAiReplyContent(fullResponse, chat, targetChatId, targetChatType, isBackground = false, isCharBlockedMonologue = false, activityProactiveTask = null) {
     const rawResponse = fullResponse;
     if (fullResponse) {
         // 1. 移除 [incipere] 标签
         fullResponse = fullResponse.replace(/\[incipere\]/g, "");
+
+        if (activityProactiveTask?.phase === 'response') {
+            fullResponse = fullResponse
+                .replace(/\[phone-control:[^\]]*\]/gi, '')
+                .trim();
+        }
 
         // 1.4 角色掌控模式：解析并执行 [phone-control:...] 指令，并从展示内容中移除
         if (targetChatType === 'private') {
@@ -1950,15 +2121,18 @@ async function handleAiReplyContent(fullResponse, chat, targetChatId, targetChat
         await saveCurrentChat();
         renderChatList();
 
+        if (targetChatType === 'private' && typeof window.UwUCrossAppContext?.publish === 'function') {
+            try {
+                await window.UwUCrossAppContext.publish(chat, targetChatType);
+            } catch (error) {
+                console.warn('[UwU cross-app context] Publish failed:', error);
+            }
+        }
+
         if (targetChatType === 'private' && (chat.source === 'forum' || chat.source === 'peek') && chat.supplementPersonaAiEnabled) {
             setTimeout(function() {
                 if (typeof forumSupplementPersonaFromChat === 'function') forumSupplementPersonaFromChat(targetChatId, chat);
             }, 600);
-        }
-
-        // 触发独立的电量检查（不阻塞主流程）
-        if (window.BatteryInteraction && typeof window.BatteryInteraction.triggerIndependentCheck === 'function') {
-            window.BatteryInteraction.triggerIndependentCheck(chat);
         }
 
         // 回复全部结束后检查是否达到自动总结间隔，若达到则静默总结到完整区间（如 1-100）
@@ -2412,6 +2586,12 @@ function getInjectedFormatsPrompt(character, formats) {
     return prompt + '\n';
 }
 
+function appendSharedContextToPrivatePrompt(prompt, character, opts) {
+    if (opts && opts.includeSharedContext === false) return prompt;
+    const sharedContext = window.UwUSharedContext.getContextForCharacter(character);
+    return sharedContext ? `${prompt}\n\n${sharedContext}\n` : prompt;
+}
+
 function generatePrivateSystemPrompt(character, opts) {
     opts = opts || {};
     const linkedChar = (character.source === 'forum' && character.linkedCharId && db.characters)
@@ -2576,7 +2756,7 @@ function generatePrivateSystemPrompt(character, opts) {
             template += '\n' + opts.historyText;
         }
 
-        return template;
+        return appendSharedContextToPrivatePrompt(template, character, opts);
     }
 
     // 节点系统：拦截并返回专属提示词
@@ -2818,7 +2998,7 @@ function generatePrivateSystemPrompt(character, opts) {
             nodePrompt += '\n' + opts.historyText;
         }
 
-        return nodePrompt;
+        return appendSharedContextToPrivatePrompt(nodePrompt, character, opts);
     }
 
     let prompt = `你正在一个名为“404”的线上聊天软件中扮演一个角色。请严格遵守以下规则：\n`;
@@ -3100,6 +3280,16 @@ function generatePrivateSystemPrompt(character, opts) {
                 visitActivityContext +
                 '\n';
         }
+        const batteryContext =
+            window.BatteryInteraction &&
+                typeof window.BatteryInteraction.getAmbientContext === 'function'
+                ? window.BatteryInteraction.getAmbientContext()
+                : '';
+
+        if (batteryContext) {
+            prompt += '\n' + batteryContext + '\n';
+        }
+
         if (opts.isPhoneControlRevokeAttempt) {
             prompt += '\n【重要指令】用户正在尝试关闭你对TA手机的查看与操控权限！你必须在回复中做出明确选择：\n' +
                       '如果同意关闭，必须包含标签 [同意关闭] ；如果拒绝关闭，必须包含标签 [拒绝关闭] （二者必选其一）。\n' +
@@ -3323,7 +3513,7 @@ function generatePrivateSystemPrompt(character, opts) {
         prompt += '\n' + opts.historyText;
     }
 
-    return prompt;
+    return appendSharedContextToPrivatePrompt(prompt, character, opts);
 }
 
 // 根据文本估算 Token（汉字约 1.2，其他约 0.4，与 estimateChatTokens 一致）
@@ -3512,7 +3702,10 @@ function getChatTokenBreakdown(chatId, chatType = 'private') {
 
     // 12) 短期记忆（对话历史）
     let historySlice = (chat.history || []).slice(-(chat.maxMemory || 20));
-    historySlice = historySlice.filter(m => !m.isContextDisabled);
+    historySlice = filterHistoryForAI(chat, historySlice)
+        .filter(m => (
+            !m.isContextDisabled && !m.isThinking && !m.isStatusUpdate
+        ));
     
     let lastAiIndex = -1;
     for (let i = historySlice.length - 1; i >= 0; i--) {
@@ -3594,7 +3787,10 @@ function _getChatTokenBreakdownGroup(chat, chatType = 'group') {
     const personaPrompt = systemPrompt.replace(/<memoir>[\s\S]*?<\/memoir>/g, '').trim();
 
     let historySlice = (chat.history || []).slice(-(chat.maxMemory || 20));
-    historySlice = historySlice.filter(m => !m.isContextDisabled);
+    historySlice = filterHistoryForAI(chat, historySlice)
+        .filter(m => (
+            !m.isContextDisabled && !m.isThinking && !m.isStatusUpdate
+        ));
     let shortTermText = '';
     historySlice.forEach(msg => {
         shortTermText += msg.content || '';

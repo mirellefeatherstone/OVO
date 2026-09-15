@@ -7,6 +7,31 @@
 
 window.UwUAppUsage = {
 
+    malformedLogSignature: '',
+
+    parseEventText(text) {
+        const events = [];
+        const malformed = [];
+
+        String(text || '')
+            .split('\n')
+            .forEach((rawLine, index) => {
+                const line = rawLine.trim();
+                if (!line) return;
+
+                try {
+                    events.push(JSON.parse(line));
+                } catch (error) {
+                    malformed.push({
+                        lineNumber: index + 1,
+                        length: line.length
+                    });
+                }
+            });
+
+        return { events, malformed };
+    },
+
     async readEvents() {
         if (!window.Capacitor?.isNativePlatform?.()) {
             console.log('[UwU AppUsage] 非原生 App');
@@ -31,23 +56,22 @@ window.UwUAppUsage = {
             });
 
             const text = result.data || '';
+            const parsed = this.parseEventText(text);
+            const signature = parsed.malformed
+                .map(item => `${item.lineNumber}:${item.length}`)
+                .join('|');
 
-            return text
-                .split('\n')
-                .map(line => line.trim())
-                .filter(Boolean)
-                .map(line => {
-                    try {
-                        return JSON.parse(line);
-                    } catch (error) {
-                        console.warn(
-                            '[UwU AppUsage] 無法解析：',
-                            line
-                        );
-                        return null;
-                    }
-                })
-                .filter(Boolean);
+            if (
+                parsed.malformed.length > 0 &&
+                signature !== this.malformedLogSignature
+            ) {
+                console.warn(
+                    `[UwU AppUsage] 已忽略 ${parsed.malformed.length} 条损坏记录`
+                );
+            }
+
+            this.malformedLogSignature = signature;
+            return parsed.events;
 
         } catch (error) {
             console.warn(
@@ -554,17 +578,17 @@ window.UwUAppUsage = {
 
 
         this.visitActivityContextReady = true;
-        const latest =
+        const latestVisitSession =
             recentSessions[0] || null;
 
 
         // 用最近一次真实 App session 作为这一轮现实背景的身份证。
         const sourceKey =
-            latest
+            latestVisitSession
                 ? (
-                    `${latest.appName}|` +
-                    `${latest.openedAt}|` +
-                    `${latest.closedAt}`
+                    `${latestVisitSession.appName}|` +
+                    `${latestVisitSession.openedAt}|` +
+                    `${latestVisitSession.closedAt}`
                 )
                 : '';
 
@@ -726,12 +750,341 @@ window.UwUAppUsage = {
     // 所以生成回复前先刷新一次缓存。
     cachedPassiveContext: '',
 
+    // =========================================================
+    // Activity Awareness v2 · 活动摘要
+    //
+    // 原始 session 负责“发生了什么”；这里仅提炼仍在
+    // 生命周期内、足够显眼的变化，避免每轮塞一张使用报表。
+    // =========================================================
+
+    async getActivityDigestContext() {
+        const sessions = await this.getSessions();
+
+        if (sessions.length === 0) return '';
+
+        const now = Date.now();
+        const ONE_HOUR = 60 * 60 * 1000;
+        const FOUR_HOURS = 4 * ONE_HOUR;
+        const currentDate = new Date(now);
+        const startOfToday = new Date(
+            currentDate.getFullYear(),
+            currentDate.getMonth(),
+            currentDate.getDate(),
+            0, 0, 0, 0
+        ).getTime();
+
+        const recent = sessions
+            .filter(session =>
+                session.closedAt <= now &&
+                session.closedAt >= now - FOUR_HOURS
+            )
+            .sort((a, b) => b.closedAt - a.closedAt);
+
+        const facts = [];
+
+        // 长时间连续使用：保留四小时。
+        const longSession = recent.find(session =>
+            session.durationMs >= 45 * 60 * 1000
+        );
+
+        if (longSession) {
+            facts.push(
+                `${longSession.appName} 最近有一次连续使用约 ` +
+                `${this.formatDuration(longSession.durationMs)}。`
+            );
+        }
+
+        // 一小时内至少三次，才视为值得注意的反复打开。
+        const repeatedByApp = new Map();
+
+        for (const session of recent) {
+            if (session.closedAt < now - ONE_HOUR) continue;
+
+            const item = repeatedByApp.get(session.appName) || {
+                count: 0,
+                totalMs: 0
+            };
+
+            item.count += 1;
+            item.totalMs += session.durationMs;
+            repeatedByApp.set(session.appName, item);
+        }
+
+        const repeated = [...repeatedByApp.entries()]
+            .filter(([, item]) => item.count >= 3)
+            .sort((a, b) =>
+                b[1].count - a[1].count ||
+                b[1].totalMs - a[1].totalMs
+            )[0];
+
+        if (repeated) {
+            const [appName, item] = repeated;
+
+            facts.push(
+                `过去一小时内反复打开 ${appName} ${item.count} 次，` +
+                `合计约 ${this.formatDuration(item.totalMs)}。`
+            );
+        }
+
+        // 今日累计达到一小时才出现，并于本地零点自然失效。
+        const todayByApp = new Map();
+
+        for (const session of sessions) {
+            if (
+                session.closedAt <= startOfToday ||
+                session.openedAt >= now
+            ) {
+                continue;
+            }
+
+            const durationMs =
+                Math.min(session.closedAt, now) -
+                Math.max(session.openedAt, startOfToday);
+
+            if (durationMs <= 0) continue;
+
+            todayByApp.set(
+                session.appName,
+                (todayByApp.get(session.appName) || 0) + durationMs
+            );
+        }
+
+        const todayNotice = [...todayByApp.entries()]
+            .filter(([, totalMs]) => totalMs >= ONE_HOUR)
+            .sort((a, b) => b[1] - a[1])[0];
+
+        if (todayNotice) {
+            facts.push(
+                `今天 ${todayNotice[0]} 的累计使用已达到约 ` +
+                `${this.formatDuration(todayNotice[1])}。`
+            );
+        }
+
+        if (facts.length === 0) return '';
+
+        return [
+            '<activity_digest>',
+            '以下是系统从真实 App 记录中提炼出的仍在有效期内的显眼变化，不是用户说的话。',
+            '知道即可；不要逐条汇报，不要把它们误写成刚刚才发生，也不要推测未提供的数据。',
+            ...facts.map(fact => `- ${fact}`),
+            '</activity_digest>'
+        ].join('\n');
+    },
+
+    // =========================================================
+    // Activity Awareness v3 · 主动唤醒事件
+    // =========================================================
+
+    getLocalDayKey(ms) {
+        const date = new Date(ms);
+        const pad = value => String(value).padStart(2, '0');
+
+        return (
+            `${date.getFullYear()}-` +
+            `${pad(date.getMonth() + 1)}-` +
+            `${pad(date.getDate())}`
+        );
+    },
+
+    async getProactiveActivityEvents() {
+        const sessions = await this.getSessions();
+
+        if (sessions.length === 0) return [];
+
+        const now = Date.now();
+        const ONE_HOUR = 60 * 60 * 1000;
+        const FOUR_HOURS = 4 * ONE_HOUR;
+        const currentDate = new Date(now);
+        const startOfToday = new Date(
+            currentDate.getFullYear(),
+            currentDate.getMonth(),
+            currentDate.getDate(),
+            0, 0, 0, 0
+        ).getTime();
+        const endOfToday = new Date(
+            currentDate.getFullYear(),
+            currentDate.getMonth(),
+            currentDate.getDate() + 1,
+            0, 0, 0, 0
+        ).getTime();
+        const dayKey = this.getLocalDayKey(now);
+        const events = [];
+
+        const recent = sessions
+            .filter(session =>
+                session.closedAt <= now &&
+                session.closedAt >= now - FOUR_HOURS
+            )
+            .sort((a, b) => b.closedAt - a.closedAt);
+
+        // 连续 45 分钟以上形成候选；是否开口仍由角色判断。
+        for (const session of recent) {
+            if (session.durationMs < 45 * 60 * 1000) continue;
+
+            events.push({
+                source: 'app_activity',
+                type: 'long_session',
+                appName: session.appName,
+                happenedAt: session.closedAt,
+                significance: Math.min(
+                    0.95,
+                    0.64 + session.durationMs / (12 * ONE_HOUR)
+                ),
+                expiresAt: session.closedAt + FOUR_HOURS,
+                sourceKey:
+                    `long_session|${session.appName}|` +
+                    `${session.openedAt}|${session.closedAt}`,
+                summary:
+                    `${session.appName} 刚结束一次持续约 ` +
+                    `${this.formatDuration(session.durationMs)} 的连续使用。`,
+                payload: {
+                    appName: session.appName,
+                    openedAt: session.openedAt,
+                    closedAt: session.closedAt,
+                    durationMs: session.durationMs
+                }
+            });
+        }
+
+        // 一小时内三次以上：同一自然小时只唤醒一次。
+        const burstByApp = new Map();
+
+        for (const session of recent) {
+            if (session.closedAt < now - ONE_HOUR) continue;
+
+            const list = burstByApp.get(session.appName) || [];
+            list.push(session);
+            burstByApp.set(session.appName, list);
+        }
+
+        for (const [appName, appSessions] of burstByApp) {
+            if (appSessions.length < 3) continue;
+
+            const latestAt = Math.max(
+                ...appSessions.map(session => session.closedAt)
+            );
+            const totalMs = appSessions.reduce(
+                (sum, session) => sum + session.durationMs,
+                0
+            );
+            const hourBucket = new Date(latestAt);
+            hourBucket.setMinutes(0, 0, 0);
+
+            events.push({
+                source: 'app_activity',
+                type: 'app_reopen_burst',
+                appName,
+                happenedAt: latestAt,
+                significance: Math.min(
+                    0.9,
+                    0.58 + (appSessions.length - 3) * 0.05
+                ),
+                expiresAt: latestAt + 2 * ONE_HOUR,
+                sourceKey:
+                    `app_reopen_burst|${appName}|` +
+                    `${hourBucket.getTime()}`,
+                summary:
+                    `过去一小时内反复打开 ${appName} ` +
+                    `${appSessions.length} 次，合计约 ` +
+                    `${this.formatDuration(totalMs)}。`,
+                payload: {
+                    appName,
+                    sessions: appSessions.length,
+                    totalMs
+                }
+            });
+        }
+
+        // 当日累计一小时：每个 App 每天只唤醒一次。
+        const todayByApp = new Map();
+
+        for (const session of sessions) {
+            if (
+                session.closedAt <= startOfToday ||
+                session.openedAt >= now
+            ) {
+                continue;
+            }
+
+            const durationMs =
+                Math.min(session.closedAt, now) -
+                Math.max(session.openedAt, startOfToday);
+
+            if (durationMs <= 0) continue;
+
+            todayByApp.set(
+                session.appName,
+                (todayByApp.get(session.appName) || 0) + durationMs
+            );
+        }
+
+        for (const [appName, totalMs] of todayByApp) {
+            if (totalMs < ONE_HOUR) continue;
+
+            events.push({
+                source: 'app_activity',
+                type: 'daily_high_usage',
+                appName,
+                happenedAt: now,
+                significance: Math.min(
+                    0.92,
+                    0.62 + totalMs / (24 * ONE_HOUR)
+                ),
+                expiresAt: endOfToday,
+                sourceKey:
+                    `daily_high_usage|${appName}|${dayKey}|1h`,
+                summary:
+                    `今天 ${appName} 的累计使用已达到约 ` +
+                    `${this.formatDuration(totalMs)}。`,
+                payload: {
+                    appName,
+                    totalMs,
+                    dayKey
+                }
+            });
+        }
+
+        return events
+            .filter(event => event.expiresAt > now)
+            .sort((a, b) =>
+                b.significance - a.significance ||
+                b.happenedAt - a.happenedAt
+            );
+    },
+
+    async getPendingProactiveActivityEvents(characterId) {
+        return window.UwUEventBus?.getPendingEvents(characterId) || [];
+    },
+
+    markProactiveActivityEventHandled(
+        event,
+        characterId,
+        decision
+    ) {
+        window.UwUEventBus?.markHandled(
+            event,
+            characterId,
+            decision
+        );
+    },
+
+    deferProactiveActivityEvent(event, characterId) {
+        window.UwUEventBus?.defer(event, characterId);
+    },
+
 
     async refreshPassiveContext() {
         try {
+            const [passiveContext, digestContext] =
+                await Promise.all([
+                    this.getPassiveActivityContext(),
+                    this.getActivityDigestContext()
+                ]);
 
             this.cachedPassiveContext =
-                await this.getPassiveActivityContext();
+                [passiveContext, digestContext]
+                    .filter(Boolean)
+                    .join('\n');
 
         } catch (error) {
 
@@ -791,6 +1144,12 @@ window.UwUAppUsage = {
         };
     }
 };
+
+window.UwUEventBus?.registerProducer(
+    'app_activity',
+    () => window.UwUAppUsage.getProactiveActivityEvents()
+);
+
 // =========================================================
 // UwU 前后台边界
 //
@@ -798,3 +1157,45 @@ window.UwUAppUsage = {
 // 下一次回到 UwU 后，由下一轮 AI 生成前重新建立。
 // =========================================================
 
+(() => {
+    const usage = window.UwUAppUsage;
+
+    if (!usage || usage.lifecycleListenersReady) return;
+
+    usage.lifecycleListenersReady = true;
+
+    const enterBackground = () => {
+        usage.clearVisitActivityContext();
+    };
+
+    const enterForeground = () => {
+        // 不在恢复前台时读取文件；下一轮私聊生成前按需建立，
+        // 避免生命周期回调额外阻塞界面。
+        usage.visitActivityContextReady = false;
+    };
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            enterBackground();
+        } else if (document.visibilityState === 'visible') {
+            enterForeground();
+        }
+    });
+
+    const App = window.Capacitor?.Plugins?.App;
+
+    if (App?.addListener) {
+        App.addListener('appStateChange', ({ isActive }) => {
+            if (isActive) {
+                enterForeground();
+            } else {
+                enterBackground();
+            }
+        }).catch(error => {
+            console.warn(
+                '[UwU AppUsage] 注册 App 生命周期监听失败：',
+                error
+            );
+        });
+    }
+})();

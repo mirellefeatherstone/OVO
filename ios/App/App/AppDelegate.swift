@@ -7,7 +7,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        do {
+            let repaired = try AppUsageLogStore.repairMalformedLines()
+            if repaired > 0 {
+                print("[UwU AppUsage] repaired \(repaired) malformed log line(s)")
+            }
+        } catch {
+            print("[UwU AppUsage] log repair failed: \(error.localizedDescription)")
+        }
         return true
     }
 

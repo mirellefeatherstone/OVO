@@ -174,7 +174,7 @@ const globalSettingKeys = [
     'theaterApiSettings', 'theaterFontSize', 'theaterFontPreset',
     'novelAiSettings', 'gptImageSettings', 'gptImagePresets', 'avatarRecognitionDetailLevel',
     'phoneControlRecycleBin', 'nodeTemplates', 'nodeSummaryText', 'memoryTableTemplates', 'vectorMemoryTemplates',
-    'nightModeSettings', 'homeStatusBarSettings', 'stickerCategories', 'magicRoom',
+    'nightModeSettings', 'homeStatusBarSettings', 'stickerCategories', 'magicRoom', 'sharedContextSettings', 'notionSharedContextSettings',
     'keepAliveCodeEnabled', 'keepAliveAudioEnabled', 'keepAliveAudioSrc', 'keepAliveAudioName', 'keepAliveAudioLibrary'
 ];
 if (typeof window !== 'undefined') window.globalSettingKeysForBackup = globalSettingKeys;
@@ -696,6 +696,16 @@ var db = {
     supplementPersonaApiSettings: {},
     peekApiSettings: {},
     vectorApiSettings: {},
+    sharedContextSettings: {
+        enabled: true
+    },
+    notionSharedContextSettings: {
+        enabled: false,
+        dataSourceId: '',
+        token: '',
+        lastSyncTime: '',
+        lastSyncedAt: ''
+    },
     wallpaper: 'https://i.postimg.cc/W4Z9R9x4/ins-1.jpg',
     globalChatWallpaper: '',
     globalCallWallpaper: '',
@@ -926,6 +936,15 @@ function initDatabase() {
         globalSettings: 'key',
         archives: '&id,characterId,timestamp'
     });
+    dexieDB.version(4).stores({
+        characters: '&id',
+        groups: '&id',
+        worldBooks: '&id',
+        myStickers: '&id',
+        globalSettings: 'key',
+        archives: '&id,characterId,timestamp',
+        sharedContextRecords: '&id,time,kind,source'
+    });
 }
 
 // 数据保存与加载
@@ -1058,6 +1077,16 @@ const loadData = async () => {
             supplementPersonaApiSettings: {},
             peekApiSettings: {},
             vectorApiSettings: {},
+            sharedContextSettings: {
+                enabled: true
+            },
+            notionSharedContextSettings: {
+                enabled: false,
+                dataSourceId: '',
+                token: '',
+                lastSyncTime: '',
+                lastSyncedAt: ''
+            },
             imageRecognitionEnabled: false,
             imageRecognitionApiSettings: {},
             stickerRecognitionApiSettings: {},
