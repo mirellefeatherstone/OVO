@@ -1767,13 +1767,22 @@ function generateGroupSystemPrompt(group, opts) {
             canUseStickers = true;
         }
     }
-    prompt += stickerInstruction;
+    /* [WeChatGame v0.2 group prompt] */
+    if (window.WeChatGame) {
+        stickerInstruction += `   - **微信小游戏表情**: 所有成员都可以主动掷骰子或猜拳。发起新游戏时，必须在最终正式输出中使用完整格式：\`[{成员真名}发送的表情包：骰子]\` 或 \`[{成员真名}发送的表情包：猜拳]\`。只能决定是否发起游戏，严禁指定、预测或操纵点数/石头/剪刀/布；具体结果由客户端独立随机。历史记录中的“骰子·数字点”“猜拳·石头/剪刀/布”是已经结算的真实旧结果，可以读取并据此反应。即使思考过程中想象了某个手势，只要决定实际出拳，最终输出中仍必须保留完整的“发送的表情包：猜拳”消息。同一轮可以连续发送多个小游戏表情。\n`;
+        canUseStickers = true;
+    }
+
+prompt += stickerInstruction;
 
     let outputFormats = `
 - **普通消息**: \`[{成员真名}的消息：{消息内容}]\``;
 
     if (canUseStickers) {
         outputFormats += `\n- **表情包**: \`[{成员真名}发送的表情包：{表情包名称}]\`。例如：\`[{成员真名}发送的表情包：开心]\`。`;
+        if (window.WeChatGame) {
+            outputFormats += `\n- **微信小游戏**: 发起新游戏只能使用 \`[{成员真名}发送的表情包：骰子]\` 或 \`[{成员真名}发送的表情包：猜拳]\`。这里绝对不要填写具体点数或石头/剪刀/布。`;
+        }
     }
 
     outputFormats += `
@@ -1820,6 +1829,8 @@ function generateGroupSystemPrompt(group, opts) {
     prompt += `   - **消息数量**: 你的回复需要包含 **${minMessages}到${maxMessages}条** 消息 (即平均每个成员回复2-4条)。确保有足够多的互动。\n`;
     prompt += `   - **发言者与顺序随机**: 随机选择群成员发言，顺序也必须是随机的，不要按固定顺序轮流。\n`;
     prompt += `   - **内容多样性**: 你的回复应以普通文本消息为主，但可以 **偶尔、选择性地** 让某个成员发送一条特殊消息（表情包、语音、照片/视频），以增加真实感。不要滥用特殊消息。\n`;
+    /* [WeChatGame v0.2 group repeat exception] */
+    prompt += `   - **小游戏例外**: 骰子/猜拳不受“特殊消息偶尔一条”的限制。只要符合当前互动，同一成员可以在同一轮连续发送多个小游戏表情，每一次都独立随机。\n`;
     prompt += `   - **对话连贯性**: 尽管发言是随机的，但对话内容应整体围绕我和其他成员的发言展开，保持一定的逻辑连贯性。\n\n`;
 
     prompt += `6. **行为准则**:\n`;

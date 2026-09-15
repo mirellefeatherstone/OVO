@@ -1696,6 +1696,17 @@ async function handleAiReplyContent(fullResponse, chat, targetChatId, targetChat
                     targetSticker = db.myStickers.find(s => s.name === stickerName);
                 }
                 
+                /* [WeChatGame v0.2 AI resolver] */
+                if (!targetSticker && window.WeChatGame &&
+                    typeof window.WeChatGame.resolveAiStickerName === 'function') {
+                    const resolvedGameName = window.WeChatGame.resolveAiStickerName(stickerName);
+                    if (resolvedGameName) {
+                        item.content = item.content.replace(stickerMatch[1], resolvedGameName);
+                        stickerName = resolvedGameName;
+                        targetSticker = window.WeChatGame.getResolvedSticker(resolvedGameName);
+                    }
+                }
+
                 // 3. 如果完全找不到，则剔除该消息
                 if (!targetSticker) {
                     console.log(`[Auto-Filter] 剔除不存在的表情包: ${stickerName}`);
@@ -2474,6 +2485,12 @@ b) [${character.realName}拒绝了${character.myName}的代付请求]\n`;
         nextIndex++;
     }
 
+    /* [WeChatGame v0.2 private prompt] */
+    if (window.WeChatGame) {
+        rules += `${nextIndex}. 微信小游戏表情：你可以主动发送“骰子”或“猜拳”。用户自然说“来骰子”“扔骰子”“摇一个”“猜拳”“石头剪刀布”“再来”“再来一把”等，且语境明确指向小游戏时，可以直接发送对应小游戏表情，不需要解释格式或先询问。你只能决定是否发送，不能指定、预测或操纵结果；每次出现都由客户端独立随机。同一轮可以按角色性格和情境连续发送多个，例如输了不服气马上再发一次，每一个都重新随机。\n`;
+        nextIndex++;
+    }
+
     return rules;
 }
 
@@ -2561,6 +2578,11 @@ t) 赠送亲属卡: [${character.realName}赠送亲属卡：额度{金额}元；
        outputFormats += `\n     m) HTML模块: {HTML内容}。这是一种特殊的、用于展示丰富样式的小卡片消息，格式必须为纯HTML+行内CSS，你可以用它来创造更有趣的互动。`;
    }
    
+   /* [WeChatGame v0.2 output format] */
+   if (window.WeChatGame) {
+       outputFormats += `\n     微信小游戏表情: [${character.realName}发送的表情包：骰子] 或 [${character.realName}发送的表情包：猜拳]。只写“骰子/猜拳”，不要写具体点数或手势；结果由客户端随机。同一轮允许连续多次。`;
+   }
+
    return outputFormats;
 }
 

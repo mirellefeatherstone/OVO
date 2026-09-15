@@ -626,3 +626,13 @@ ${availableTokens}
     };
 
 })();
+
+/* [WeChatGame final loader] */
+(() => {
+    if (document.querySelector('script[data-wechat-game-loader]')) return;
+    const script = document.createElement('script');
+    script.src = 'js/modules/wechat_game.js';
+    script.dataset.wechatGameLoader = '1';
+    script.defer = true;
+    document.head.appendChild(script);
+})();

@@ -1189,6 +1189,16 @@ function createMessageBubbleElement(message, isContinuous = false) {
             if (!targetSticker) {
                 targetSticker = db.myStickers.find(s => s.name === stickerName);
             }
+            /* [WeChatGame v0.2 renderer] */
+            if (!targetSticker && window.WeChatGame &&
+                typeof window.WeChatGame.getResolvedSticker === 'function') {
+                const gameSticker = window.WeChatGame.getResolvedSticker(stickerName);
+                if (gameSticker) {
+                    targetSticker = gameSticker;
+                    bubbleElement.dataset.wechatGameName = gameSticker.name;
+                    bubbleElement.dataset.wechatGameTimestamp = String(timestamp || 0);
+                }
+            }
             
             if (targetSticker) {
                 stickerSrc = targetSticker.data;
