@@ -5,8 +5,10 @@
   "main": "sw.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "node scripts/apply-capacitor-keyboard-patch.mjs",
     "websync": "rm -rf www && mkdir www && cp index.html style.css contacts.css more_menu.css manifest.json sw.js www/ && cp -R js css assets custom www/",
-    "iossync": "npm run websync && npx cap sync ios"
+    "apply:keyboard-patch": "node scripts/apply-capacitor-keyboard-patch.mjs",
+    "iossync": "npm run websync && npm run apply:keyboard-patch && npx cap sync ios"
   },
   "repository": {
     "type": "git",
@@ -23,6 +25,8 @@
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/filesystem": "^8.1.2",
-    "@capacitor/ios": "^8.5.0"
+    "@capacitor/ios": "^8.5.0",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/share": "^8.0.1"
   }
 }

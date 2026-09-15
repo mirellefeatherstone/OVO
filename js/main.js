@@ -13,7 +13,90 @@ if ('serviceWorker' in navigator) {
     });
 }
 
+async function configureNativeKeyboard() {
+    const keyboard = window.Capacitor?.Plugins?.Keyboard;
+
+    if (!keyboard) return;
+
+    const scrollActiveChatToBottom = () => {
+        const chatScreen = document.getElementById('chat-room-screen');
+        const messageArea = document.getElementById('message-area');
+
+        if (!chatScreen?.classList.contains('active') || !messageArea) {
+            return;
+        }
+
+        // 键盘切换时禁用消息区的 smooth scroll，避免回底动作
+        // 落后于原生键盘动画；Will/Did 事件会分别校正首尾位置。
+        const previousScrollBehavior = messageArea.style.scrollBehavior;
+        const scrollToBottom = () => {
+            messageArea.scrollTop = messageArea.scrollHeight;
+        };
+
+        messageArea.style.scrollBehavior = 'auto';
+        scrollToBottom();
+
+        requestAnimationFrame(() => {
+            scrollToBottom();
+            requestAnimationFrame(() => {
+                scrollToBottom();
+                messageArea.style.scrollBehavior = previousScrollBehavior;
+            });
+        });
+    };
+
+    try {
+        // 恢复 Capacitor 默认的 iOS 原生 WebView resize。
+        // 键盘弹起时输入栏会随 WebView 一起上移。
+        if (keyboard.setResizeMode) {
+            await keyboard.setResizeMode({ mode: 'native' });
+        }
+
+        // 只隐藏 iPhone 键盘上方的辅助栏。
+        if (keyboard.setAccessoryBarVisible) {
+            await keyboard.setAccessoryBarVisible({
+                isVisible: false
+            });
+        }
+
+    } catch (error) {
+        console.warn(
+            '[UwU Keyboard] 初始化键盘失败：',
+            error
+        );
+    }
+
+    if (keyboard.addListener) {
+        try {
+            await Promise.all([
+                keyboard.addListener(
+                    'keyboardWillShow',
+                    scrollActiveChatToBottom
+                ),
+                keyboard.addListener(
+                    'keyboardDidShow',
+                    scrollActiveChatToBottom
+                ),
+                keyboard.addListener(
+                    'keyboardWillHide',
+                    scrollActiveChatToBottom
+                ),
+                keyboard.addListener(
+                    'keyboardDidHide',
+                    scrollActiveChatToBottom
+                )
+            ]);
+        } catch (error) {
+            console.warn(
+                '[UwU Keyboard] 注册聊天回底监听失败：',
+                error
+            );
+        }
+    }
+}
+
 const init = async () => {
+    await configureNativeKeyboard();
     await loadData();
     if (!db.homeWidgetSettings || !db.homeWidgetSettings.topLeft) {
         db.homeWidgetSettings = JSON.parse(JSON.stringify(defaultWidgetSettings));

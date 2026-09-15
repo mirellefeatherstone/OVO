@@ -1,0 +1,86 @@
+diff --git a/ios/Sources/KeyboardPlugin/Keyboard.m b/ios/Sources/KeyboardPlugin/Keyboard.m
+index 54a6694fabed1c5ba430ea2514fd26e86a5e933f..2131641d8bb8c7067d727aed700ebc91b36d9f88 100644
+--- a/ios/Sources/KeyboardPlugin/Keyboard.m
++++ b/ios/Sources/KeyboardPlugin/Keyboard.m
+@@ -211,7 +211,10 @@ - (void)resetScrollView
+
+ - (void)onKeyboardWillHide:(NSNotification *)notification
+ {
+-  [self setKeyboardHeight:0 delay:0.01];
++  NSDictionary *userInfo = notification.userInfo;
++  NSTimeInterval duration = [userInfo[UIKeyboardAnimationDurationUserInfoKey] doubleValue];
++  UIViewAnimationCurve curve = [userInfo[UIKeyboardAnimationCurveUserInfoKey] integerValue];
++  [self setKeyboardHeight:0 duration:duration curve:curve];
+   [self resetScrollView];
+   hideTimer = [NSTimer scheduledTimerWithTimeInterval:0 repeats:NO block:^(NSTimer * _Nonnull timer) {
+     [self.bridge triggerWindowJSEventWithEventName:@"keyboardWillHide"];
+@@ -253,8 +256,10 @@ - (void)onKeyboardWillShow:(NSNotification *)notification
+     height = 0.0;
+   }
+
+-  double duration = [[notification.userInfo valueForKey:UIKeyboardAnimationDurationUserInfoKey] doubleValue]+0.2;
+-  [self setKeyboardHeight:(int)height delay:duration];
++  NSDictionary *userInfo = notification.userInfo;
++  NSTimeInterval duration = [userInfo[UIKeyboardAnimationDurationUserInfoKey] doubleValue];
++  UIViewAnimationCurve curve = [userInfo[UIKeyboardAnimationCurveUserInfoKey] integerValue];
++  [self setKeyboardHeight:(int)height duration:duration curve:curve];
+   [self resetScrollView];
+
+   NSString * data = [NSString stringWithFormat:@"{ 'keyboardHeight': %d }", (int)height];
+@@ -303,7 +308,30 @@ - (void)onKeyboardDidShow:(NSNotification *)notification
+   stageManagerOffset = 0;
+ }
+
+-- (void)setKeyboardHeight:(int)height delay:(NSTimeInterval)delay
++- (UIViewAnimationOptions)animationOptionsForKeyboardCurve:(UIViewAnimationCurve)curve
++{
++  UIViewAnimationOptions options = UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction;
++
++  switch (curve) {
++    case UIViewAnimationCurveEaseIn:
++      options |= UIViewAnimationOptionCurveEaseIn;
++      break;
++    case UIViewAnimationCurveEaseOut:
++      options |= UIViewAnimationOptionCurveEaseOut;
++      break;
++    case UIViewAnimationCurveLinear:
++      options |= UIViewAnimationOptionCurveLinear;
++      break;
++    case UIViewAnimationCurveEaseInOut:
++    default:
++      options |= UIViewAnimationOptionCurveEaseInOut;
++      break;
++  }
++
++  return options;
++}
++
++- (void)setKeyboardHeight:(int)height duration:(NSTimeInterval)duration curve:(UIViewAnimationCurve)curve
+ {
+   if (self.paddingBottom == height) {
+     return;
+@@ -311,13 +339,14 @@ - (void)setKeyboardHeight:(int)height delay:(NSTimeInterval)delay
+
+   self.paddingBottom = height;
+
+-  __weak KeyboardPlugin* weakSelf = self;
+-  SEL action = @selector(_updateFrame);
+-  [NSObject cancelPreviousPerformRequestsWithTarget:weakSelf selector:action object:nil];
+-  if (delay == 0) {
++  [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_updateFrame) object:nil];
++  if (duration <= 0) {
+     [self _updateFrame];
+   } else {
+-    [weakSelf performSelector:action withObject:nil afterDelay:delay inModes:@[NSRunLoopCommonModes]];
++    UIViewAnimationOptions options = [self animationOptionsForKeyboardCurve:curve];
++    [UIView animateWithDuration:duration delay:0 options:options animations:^{
++      [self _updateFrame];
++    } completion:nil];
+   }
+ }
+
+@@ -521,4 +550,3 @@
+
+ @end
+ #pragma clang diagnostic pop
+-
