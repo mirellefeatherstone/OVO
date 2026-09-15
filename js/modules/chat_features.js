@@ -157,12 +157,11 @@ function setupImageRecognition() {
     imageUploadInput.addEventListener('change', async (e) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
-        const opts = { quality: 0.8, maxWidth: 1024, maxHeight: 1024 };
         try {
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 try {
-                    const compressedUrl = await compressImage(file, opts);
+                    const compressedUrl = await prepareChatImage(file);
                     sendImageForRecognition(compressedUrl);
                 } catch (err) {
                     console.error('Image compression failed:', err);
@@ -178,6 +177,26 @@ function setupImageRecognition() {
     });
 }
 
+function readImageAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+function prepareChatImage(file) {
+    const quality = db.chatImageQuality || 'high';
+    if (quality === 'original') return readImageAsDataUrl(file);
+    const maxDimension = quality === 'standard' ? 1024 : 2048;
+    return compressImage(file, {
+        quality: quality === 'standard' ? 0.82 : 0.92,
+        maxWidth: maxDimension,
+        maxHeight: maxDimension
+    });
+}
+
 function setupCameraCapture() {
     const cameraCaptureBtn = document.getElementById('camera-capture-btn');
     const cameraUploadInput = document.getElementById('camera-upload-input');
@@ -190,11 +209,7 @@ function setupCameraCapture() {
         const file = e.target.files[0];
         if (file) {
             try {
-                const compressedUrl = await compressImage(file, {
-                    quality: 0.8,
-                    maxWidth: 1024,
-                    maxHeight: 1024
-                });
+                const compressedUrl = await prepareChatImage(file);
                 sendImageForRecognition(compressedUrl);
             } catch (error) {
                 console.error('Image compression failed:', error);

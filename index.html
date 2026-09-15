@@ -2031,6 +2031,18 @@
                                 </div>
                             </div>
                             <div class="kkt-item">
+                                <div class="kkt-item-label">发送图片清晰度</div>
+                                <div class="kkt-item-control">
+                                    <select id="chat-image-quality"
+                                        style="border:none; background:transparent; text-align:right; direction:rtl; appearance:none; -webkit-appearance:none; padding-right:15px;">
+                                        <option value="standard">标准（最长边 1024px）</option>
+                                        <option value="high">高清（最长边 2048px）</option>
+                                        <option value="original">原图</option>
+                                    </select>
+                                    <span class="kkt-arrow">›</span>
+                                </div>
+                            </div>
+                            <div class="kkt-item">
                                 <div class="kkt-item-label">服务商</div>
                                 <div class="kkt-item-control">
                                     <select id="imageRecognition-api-provider"
@@ -4417,6 +4429,15 @@
                                         </label>
                                     </div>
                                 </div>
+                                <div class="kkt-item">
+                                    <div class="kkt-item-label">默认显示中文翻译</div>
+                                    <div class="kkt-item-control">
+                                        <label class="kkt-switch">
+                                            <input type="checkbox" id="setting-bilingual-translation-first">
+                                            <span class="kkt-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
                                 <div class="kkt-item" id="setting-bilingual-style-container">
                                     <div class="kkt-item-label">翻译显示样式</div>
                                     <div class="kkt-item-control">
@@ -6434,6 +6455,15 @@
                                 <div class="kkt-item-control">
                                     <label class="kkt-switch">
                                         <input type="checkbox" id="setting-group-bilingual-mode">
+                                        <span class="kkt-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="kkt-item" id="setting-group-bilingual-translation-first-container">
+                                <div class="kkt-item-label">默认显示中文翻译</div>
+                                <div class="kkt-item-control">
+                                    <label class="kkt-switch">
+                                        <input type="checkbox" id="setting-group-bilingual-translation-first">
                                         <span class="kkt-slider"></span>
                                     </label>
                                 </div>
@@ -10351,7 +10381,7 @@
 
     <!-- [4. 程序入口] -->
     <script src="js/main.js"></script> <!-- 主入口：初始化(init)、全局事件监听 -->
-    <script type="module" src="custom/js/index.js?v=sticky-flow-1"></script> <!-- Mirelle 自定义补丁入口 -->
+    <script type="module" src="custom/js/index.js?v=sticky-flow-1-shared-memory-3-native-export-1-telegram-bubble-2"></script> <!-- Mirelle 自定义补丁入口 -->
 <script src="js/native_backup.js"></script>
 </body>
 

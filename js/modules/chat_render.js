@@ -417,6 +417,8 @@ function createMessageBubbleElement(message, isContinuous = false) {
     if (bilingualMatch) {
         const foreignText = bilingualMatch[1].trim();
         const chineseText = bilingualMatch[2].trim();
+        const primaryText = chat.bilingualTranslationFirst === true ? chineseText : foreignText;
+        const secondaryText = chat.bilingualTranslationFirst === true ? foreignText : chineseText;
         const wrapper = document.createElement('div');
         wrapper.dataset.id = id;
         wrapper.className = 'message-wrapper received';
@@ -455,13 +457,10 @@ function createMessageBubbleElement(message, isContinuous = false) {
                 bubbleElement.classList.add('inner-style');
             }
 
-
-            /* ---------- 原文 ---------- */
-
-            const foreignSpan =
+            const primarySpan =
                 document.createElement('span');
 
-            foreignSpan.className =
+            primarySpan.className =
                 'bilingual-main-text';
 
             if (
@@ -469,16 +468,13 @@ function createMessageBubbleElement(message, isContinuous = false) {
                 window.WeChatEmoji.isLoaded
             ) {
                 window.WeChatEmoji.renderInto(
-                    foreignSpan,
-                    foreignText
+                    primarySpan,
+                    primaryText
                 );
             } else {
-                foreignSpan.textContent =
-                    foreignText;
+                primarySpan.textContent =
+                    primaryText;
             }
-
-
-            /* ---------- 分割线 ---------- */
 
             const divider =
                 document.createElement('div');
@@ -486,13 +482,10 @@ function createMessageBubbleElement(message, isContinuous = false) {
             divider.className =
                 'bilingual-divider';
 
-
-            /* ---------- 翻译 ---------- */
-
-            const translationSpan =
+            const secondarySpan =
                 document.createElement('span');
 
-            translationSpan.className =
+            secondarySpan.className =
                 'translation-inner';
 
             if (
@@ -500,17 +493,17 @@ function createMessageBubbleElement(message, isContinuous = false) {
                 window.WeChatEmoji.isLoaded
             ) {
                 window.WeChatEmoji.renderInto(
-                    translationSpan,
-                    chineseText
+                    secondarySpan,
+                    secondaryText
                 );
             } else {
-                translationSpan.textContent =
-                    chineseText;
+                secondarySpan.textContent =
+                    secondaryText;
             }
 
 
             bubbleElement.appendChild(
-                foreignSpan
+                primarySpan
             );
 
             bubbleElement.appendChild(
@@ -518,15 +511,15 @@ function createMessageBubbleElement(message, isContinuous = false) {
             );
 
             bubbleElement.appendChild(
-                translationSpan
+                secondarySpan
             );
 
         } else {
 
-            const foreignSpan =
+            const primarySpan =
                 document.createElement('span');
 
-            foreignSpan.className =
+            primarySpan.className =
                 'bilingual-main-text';
 
             if (
@@ -534,16 +527,16 @@ function createMessageBubbleElement(message, isContinuous = false) {
                 window.WeChatEmoji.isLoaded
             ) {
                 window.WeChatEmoji.renderInto(
-                    foreignSpan,
-                    foreignText
+                    primarySpan,
+                    primaryText
                 );
             } else {
-                foreignSpan.textContent =
-                    foreignText;
+                primarySpan.textContent =
+                    primaryText;
             }
 
             bubbleElement.appendChild(
-                foreignSpan
+                primarySpan
             );
         }
 
@@ -613,11 +606,11 @@ function createMessageBubbleElement(message, isContinuous = false) {
             ) {
                 window.WeChatEmoji.renderInto(
                     translationDiv,
-                    chineseText
+                    secondaryText
                 );
             } else {
                 translationDiv.textContent =
-                    chineseText;
+                    secondaryText;
             }
 
             wrapper.appendChild(

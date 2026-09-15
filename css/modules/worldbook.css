@@ -4,7 +4,17 @@
 #edit-world-book-screen {
     background-color: transparent;
 }
+/* =========================================================
+   iOS 顶部安全区域
+   仅作用于世界书主页面与编辑页面
+   ========================================================= */
 
+#world-book-screen>.app-header,
+#edit-world-book-screen>.app-header {
+    box-sizing: border-box;
+    padding-top: calc(15px + env(safe-area-inset-top));
+    height: auto;
+}
 #chat-list-screen .content,
 #world-book-screen .content {
     padding: 10px 0 80px 0;

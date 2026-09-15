@@ -1846,6 +1846,7 @@ function loadSettingsToSidebar() {
         }
 
         document.getElementById('setting-bilingual-mode').checked = e.bilingualModeEnabled || false;
+        document.getElementById('setting-bilingual-translation-first').checked = e.bilingualTranslationFirst === true;
         document.getElementById('setting-bilingual-style').value = e.bilingualBubbleStyle || 'under';
         
         document.getElementById('setting-avatar-mode').value = e.avatarMode || 'full';
@@ -2479,6 +2480,7 @@ async function saveSettingsFromSidebar() {
             e.currentBubbleCssPresetName = matched ? matched.name : '';
         }
         e.bilingualModeEnabled = document.getElementById('setting-bilingual-mode').checked;
+        e.bilingualTranslationFirst = document.getElementById('setting-bilingual-translation-first').checked;
         e.bilingualBubbleStyle = document.getElementById('setting-bilingual-style').value;
         
         e.avatarMode = document.getElementById('setting-avatar-mode').value;
@@ -3200,6 +3202,16 @@ function setupApiSettingsApp() {
         document.getElementById('imageRecognition-enabled-switch').checked = db.imageRecognitionEnabled;
     } else {
         document.getElementById('imageRecognition-enabled-switch').checked = false; // 默认关闭
+    }
+
+    const chatImageQualityEl = document.getElementById('chat-image-quality');
+    if (chatImageQualityEl) {
+        chatImageQualityEl.value = db.chatImageQuality || 'high';
+        chatImageQualityEl.addEventListener('change', async () => {
+            db.chatImageQuality = chatImageQualityEl.value;
+            await saveData();
+            showToast('发送图片清晰度已保存');
+        });
     }
 
     // === 副API设置：表情包识图 API ===

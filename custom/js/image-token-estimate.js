@@ -29,6 +29,16 @@ function getMessageImageCount(message) {
     return isImageDataUrl(message?.content) ? 1 : 0;
 }
 
+function getRawImageCount(message) {
+    const parts = Array.isArray(message?.parts) ? message.parts : [];
+    if (parts.length > 0) {
+        return parts.filter(part => (
+            part?.type === 'image' && part.data && !part.description
+        )).length;
+    }
+    return isImageDataUrl(message?.content) ? 1 : 0;
+}
+
 function usesWholeContentHistory(db, chat, chatType) {
     if (chatType !== 'private') return true;
     if (db.magicRoom?.customPromptEnabled) return true;
@@ -43,14 +53,20 @@ function usesWholeContentHistory(db, chat, chatType) {
 }
 
 function getImageTokenAdjustment(db, chat, chatType) {
-    const history = (chat.history || [])
-        .slice(-(chat.maxMemory || 20))
-        .filter(message => !message.isContextDisabled);
+    let history = (chat.history || []).slice(-(chat.maxMemory || 20));
+    if (typeof window.filterHistoryForAI === 'function') {
+        history = window.filterHistoryForAI(chat, history);
+    }
+    history = history.filter(message => (
+        !message.isContextDisabled
+        && !message.isThinking
+        && !message.isStatusUpdate
+    ));
 
     const wholeContentHistory = usesWholeContentHistory(db, chat, chatType);
     let lastAiIndex = -1;
 
-    if (!wholeContentHistory) {
+    if (!wholeContentHistory || db.apiSettings?.provider === 'gemini') {
         for (let index = history.length - 1; index >= 0; index -= 1) {
             const role = history[index]?.role;
             if (role === 'assistant' || role === 'char') {
@@ -64,7 +80,10 @@ function getImageTokenAdjustment(db, chat, chatType) {
     let dataUrlTextTokens = 0;
 
     history.forEach((message, index) => {
-        const messageImageCount = getMessageImageCount(message);
+        const isTriggerMessage = lastAiIndex === -1 || index > lastAiIndex;
+        const messageImageCount = db.apiSettings?.provider === 'gemini'
+            ? (isTriggerMessage ? getRawImageCount(message) : 0)
+            : getMessageImageCount(message);
         if (messageImageCount === 0) return;
 
         imageCount += messageImageCount;
@@ -73,7 +92,6 @@ function getImageTokenAdjustment(db, chat, chatType) {
 
         let originalCountedContent = wholeContentHistory;
         if (!wholeContentHistory) {
-            const isTriggerMessage = lastAiIndex === -1 || index > lastAiIndex;
             const hasParts = Array.isArray(message.parts) && message.parts.length > 0;
 
             // The detailed private-chat branch replaces content with parts for

@@ -116,7 +116,7 @@ function setupGroupChatSystem() {
     const groupAutoSaveChanges = [
         'setting-group-theme-color', 'setting-group-use-custom-css', 'setting-group-show-timestamp',
         'setting-group-show-notice', 'setting-group-allow-gossip', 'setting-group-avatar-radius',
-        'setting-group-bilingual-mode', 'setting-group-bilingual-style', 'setting-group-auto-journal-enabled',
+        'setting-group-bilingual-mode', 'setting-group-bilingual-translation-first', 'setting-group-bilingual-style', 'setting-group-auto-journal-enabled',
         'setting-group-timestamp-format'
     ];
     groupAutoSaveChanges.forEach(id => {
@@ -1106,6 +1106,8 @@ function loadGroupSettingsToSidebar() {
     document.getElementById('setting-group-allow-gossip').checked = group.allowGossip || false;
 
     const bilingualModeCheckbox = document.getElementById('setting-group-bilingual-mode');
+    const bilingualTranslationFirstCheckbox = document.getElementById('setting-group-bilingual-translation-first');
+    const bilingualTranslationFirstContainer = document.getElementById('setting-group-bilingual-translation-first-container');
     const bilingualStyleSelect = document.getElementById('setting-group-bilingual-style');
     const bilingualStyleContainer = document.getElementById('setting-group-bilingual-style-container');
     const bilingualMembersContainer = document.getElementById('setting-group-bilingual-members-container');
@@ -1132,8 +1134,12 @@ function loadGroupSettingsToSidebar() {
 
     if (bilingualModeCheckbox && bilingualStyleSelect) {
         bilingualModeCheckbox.checked = group.bilingualModeEnabled || false;
+        bilingualTranslationFirstCheckbox.checked = group.bilingualTranslationFirst === true;
         bilingualStyleSelect.value = group.bilingualBubbleStyle || 'under';
         
+        if (bilingualTranslationFirstContainer) {
+            bilingualTranslationFirstContainer.style.display = group.bilingualModeEnabled ? 'flex' : 'none';
+        }
         if (bilingualStyleContainer) {
             bilingualStyleContainer.style.display = group.bilingualModeEnabled ? 'flex' : 'none';
         }
@@ -1147,6 +1153,9 @@ function loadGroupSettingsToSidebar() {
         bilingualModeCheckbox.parentNode.replaceChild(newCheckbox, bilingualModeCheckbox);
         
         newCheckbox.addEventListener('change', (e) => {
+            if (bilingualTranslationFirstContainer) {
+                bilingualTranslationFirstContainer.style.display = e.target.checked ? 'flex' : 'none';
+            }
             if (bilingualStyleContainer) {
                 bilingualStyleContainer.style.display = e.target.checked ? 'flex' : 'none';
             }
@@ -1471,6 +1480,7 @@ async function saveGroupSettingsFromSidebar(showToastFlag = true) {
     }
     
     group.bilingualModeEnabled = document.getElementById('setting-group-bilingual-mode').checked;
+    group.bilingualTranslationFirst = document.getElementById('setting-group-bilingual-translation-first').checked;
     group.bilingualBubbleStyle = document.getElementById('setting-group-bilingual-style').value;
     
     // bilingualMembers 现在由弹窗确认按钮直接保存，这里不需要再处理了
