@@ -16,6 +16,10 @@ const VideoCallModule = {
         isGenerating: false, // 标记是否正在请求AI生成
         initialAiResponse: null, // 存储开场白
         incomingChat: null, // 暂存来电对象
+        incomingSession: null,
+        incomingTimeoutId: null,
+        incomingRetryId: null,
+        callMessageId: null,
         isMinimized: false, // 是否处于悬浮窗模式
         hasEnteredCallScene: false, // 是否已进入通话界面（区分「等待中」与「已接通」）
         ringAudio: null, // 来电铃声 Audio 实例，用于循环播放与接通/拒绝时停止
@@ -35,6 +39,123 @@ const VideoCallModule = {
             } catch (e) {}
             this.state.ringAudio = null;
         }
+    },
+
+    clearIncomingTimers: function() {
+        clearTimeout(this.state.incomingTimeoutId);
+        clearTimeout(this.state.incomingRetryId);
+        this.state.incomingTimeoutId = null;
+        this.state.incomingRetryId = null;
+    },
+
+    stopIncomingRetries: function(chatId) {
+        const session = this.state.incomingSession;
+        if (!session || (chatId && session.chatId !== chatId)) return;
+        if (session.messageId) {
+            void this.updateCallMessage(session.chat, session.messageId, { callStatus: 'cancelled' });
+        }
+        this.clearIncomingTimers();
+        this.state.incomingSession = null;
+        this.state.incomingChat = null;
+        this.stopRingSound();
+        const modal = document.getElementById('vc-incoming-modal');
+        if (modal) {
+            modal.classList.remove('visible');
+            modal.style.display = 'none';
+        }
+    },
+
+    createCallMessage: async function(chat, direction, type) {
+        if (!chat.history) chat.history = [];
+        const message = {
+            id: `msg_${Date.now()}_${Math.random()}`,
+            role: direction === 'outgoing' ? 'user' : 'assistant',
+            content: `[${type === 'video' ? '视频' : '语音'}通话：拨号中]`,
+            timestamp: Date.now(),
+            isCallMessage: true,
+            callType: type,
+            callDirection: direction,
+            callStatus: 'calling',
+            callDuration: 0,
+            callRecordId: null
+        };
+        chat.history.push(message);
+        await saveData();
+        if (typeof renderMessages === 'function' && currentChatId === chat.id) {
+            renderMessages(false, true);
+        }
+        return message;
+    },
+
+    updateCallMessage: async function(chat, messageId, updates) {
+        const message = chat?.history?.find(item => item.id === messageId);
+        if (!message) return;
+        Object.assign(message, updates);
+        const labels = {
+            calling: '拨号中',
+            rejected: '已拒绝',
+            cancelled: '对方已取消',
+            ended: `通话时长 ${this.formatDuration(message.callDuration || 0)}`
+        };
+        message.content = `[${message.callType === 'video' ? '视频' : '语音'}通话：${labels[message.callStatus] || message.callStatus}]`;
+        await saveData();
+        if (typeof renderMessages === 'function' && currentChatId === chat.id) {
+            renderMessages(false, true);
+        }
+    },
+
+    ensureCallSummaryMessages: function(chat) {
+        if (!chat?.callHistory?.length) return false;
+        if (!chat.history) chat.history = [];
+        let changed = false;
+
+        for (const record of chat.callHistory) {
+            if (!record.summary) continue;
+            const type = record.type === 'video' ? '视频' : '语音';
+            const time = new Date(record.startTime).toLocaleString();
+            const content = `[系统整理的${type}通话摘要（${time}，非用户消息）：${record.summary}]`;
+            let summaryMessage = chat.history.find(message =>
+                message.isCallSummary && message.callRecordId === record.id
+            );
+            if (!summaryMessage) {
+                summaryMessage = {
+                    id: `msg_call_summary_${record.id}`,
+                    role: 'assistant',
+                    content,
+                    timestamp: Number(record.startTime) + (Number(record.duration) || 0) * 1000,
+                    callRecordId: record.id,
+                    isCallSummary: true,
+                    hiddenFromDisplay: true
+                };
+                const callIndex = chat.history.findIndex(message =>
+                    message.callRecordId === record.id && !message.isCallSummary
+                );
+                const laterIndex = chat.history.findIndex(message =>
+                    Number(message.timestamp) > summaryMessage.timestamp
+                );
+                const insertIndex = callIndex >= 0 ? callIndex + 1 :
+                    (laterIndex >= 0 ? laterIndex : chat.history.length);
+                chat.history.splice(insertIndex, 0, summaryMessage);
+                changed = true;
+            } else if (summaryMessage.content !== content || !summaryMessage.hiddenFromDisplay) {
+                summaryMessage.content = content;
+                summaryMessage.hiddenFromDisplay = true;
+                changed = true;
+            }
+
+            const legacyMessage = chat.history.find(message =>
+                message.callRecordId === record.id &&
+                !message.isCallMessage && !message.isCallSummary
+            );
+            const legacyPrefix = legacyMessage?.content?.match(
+                /^(\[(?:(?:视频|语音)通话记录|通话记录（非正常中断）)[：:][^；;]*[；;][^；;]*[；;])/
+            );
+            if (legacyPrefix && legacyMessage.content !== `${legacyPrefix[1]}]`) {
+                legacyMessage.content = `${legacyPrefix[1]}]`;
+                changed = true;
+            }
+        }
+        return changed;
     },
 
     // --- 真实摄像头相关 ---
@@ -324,6 +445,11 @@ const VideoCallModule = {
                 self._saveInterruptData();
             }
         });
+        let summariesUpdated = false;
+        for (const chat of [...(db.characters || []), ...(db.groups || [])]) {
+            summariesUpdated = this.ensureCallSummaryMessages(chat) || summariesUpdated;
+        }
+        if (summariesUpdated) void saveData();
         // 启动时检查是否有中断的通话需要恢复
         this.restoreInterruptedCall();
     },
@@ -429,7 +555,7 @@ const VideoCallModule = {
             generateCallSummary(chat, data.context).then(async (summary) => {
                 if (summary) {
                     callRecord.summary = summary;
-                    summaryMsg.content = `[通话记录（非正常中断）：${dateStr}；${durationStr}；${summary}]`;
+                    this.ensureCallSummaryMessages(chat);
                     if (typeof saveData === 'function') await saveData();
                     if (typeof renderMessages === 'function' && typeof currentChatId !== 'undefined' && currentChatId === chat.id) {
                         renderMessages(false, false);
@@ -640,7 +766,7 @@ const VideoCallModule = {
     },
 
     // 接收来电
-    receiveCall: function(type, chatId) {
+    receiveCall: async function(type, chatId, maxAttempts = 1, retrySession = null) {
         let chat;
         if (chatId) {
             chat = db.characters.find(c => c.id === chatId);
@@ -657,7 +783,24 @@ const VideoCallModule = {
             }
         }
 
-        if (!chat) return;
+        if (!chat || this.state.isCallActive || (this.state.incomingSession && !retrySession)) return;
+
+        this.clearIncomingTimers();
+        const session = retrySession || {
+            chat,
+            chatId: chat.id,
+            type,
+            attempt: 1,
+            maxAttempts: Math.max(1, Math.min(5, Number(maxAttempts) || 1)),
+            messageId: null
+        };
+        this.state.incomingSession = session;
+        const message = await this.createCallMessage(chat, 'incoming', type);
+        if (this.state.incomingSession !== session) {
+            await this.updateCallMessage(chat, message.id, { callStatus: 'cancelled' });
+            return;
+        }
+        session.messageId = message.id;
         
         this.state.incomingChat = chat;
         this.state.callType = type;
@@ -706,9 +849,51 @@ const VideoCallModule = {
                 this.state.ringAudio = ring;
             } catch (e) {}
         }
+        this.state.incomingTimeoutId = setTimeout(() => {
+            void this.handleIncomingNoAnswer(session);
+        }, 30000);
+    },
+
+    handleIncomingNoAnswer: async function(session) {
+        if (this.state.incomingSession !== session) return;
+        this.clearIncomingTimers();
+        this.stopRingSound();
+        const modal = document.getElementById('vc-incoming-modal');
+        modal.classList.remove('visible');
+        modal.style.display = 'none';
+        await this.updateCallMessage(session.chat, session.messageId, { callStatus: 'cancelled' });
+        if (this.state.incomingSession !== session) return;
+        if (session.attempt < session.maxAttempts) {
+            session.attempt++;
+            session.messageId = null;
+            this.state.incomingRetryId = setTimeout(() => {
+                void this.receiveCall(session.type, session.chatId, session.maxAttempts, session);
+            }, 1800 + Math.random() * 3500);
+            return;
+        }
+        this.state.incomingSession = null;
+        this.state.incomingChat = null;
+        if (typeof getAiReply === 'function') {
+            try {
+                const lastUserMessageId = [...session.chat.history].reverse()
+                    .find(message => message.role === 'user' && !message.isCallMessage)?.id;
+                await getAiReply(session.chatId, 'private', true, false, false, false, {
+                    phase: 'call_followup',
+                    callType: session.type,
+                    attempts: session.attempt,
+                    lastUserMessageId
+                });
+            } catch (error) {
+                console.error('[VideoCall] 未接来电后续决策失败', error);
+            }
+        }
     },
 
     acceptCall: function() {
+        const session = this.state.incomingSession;
+        this.clearIncomingTimers();
+        this.state.incomingSession = null;
+        this.state.callMessageId = session?.messageId || null;
         this.stopRingSound();
         const modal = document.getElementById('vc-incoming-modal');
         modal.classList.remove('visible');
@@ -729,6 +914,9 @@ const VideoCallModule = {
     },
 
     rejectCall: async function() {
+        const session = this.state.incomingSession;
+        this.clearIncomingTimers();
+        this.state.incomingSession = null;
         this.stopRingSound();
         const modal = document.getElementById('vc-incoming-modal');
         modal.classList.remove('visible');
@@ -738,23 +926,8 @@ const VideoCallModule = {
 
         const chat = this.state.incomingChat || this.state.currentChat;
 
-        if (chat) {
-            const myName = chat.myName || (chat.me ? chat.me.nickname : '我');
-            const targetName = chat.realName || chat.name;
-            const typeText = this.state.callType === 'video' ? '视频' : '语音';
-
-            const msg = {
-                id: `msg_${Date.now()}`,
-                role: 'system',
-                content: `[${myName}拒绝了${targetName}的${typeText}通话]`,
-                timestamp: Date.now()
-            };
-            chat.history.push(msg);
-            await saveData();
-            
-            if (typeof renderMessages === 'function' && typeof currentChatId !== 'undefined' && currentChatId === chat.id) {
-                renderMessages(false, true);
-            }
+        if (chat && session?.messageId) {
+            await this.updateCallMessage(chat, session.messageId, { callStatus: 'rejected' });
         }
         
         this.state.incomingChat = null;
@@ -787,20 +960,8 @@ const VideoCallModule = {
         this.state.currentChat = chat;
 
         if (!isIncoming) {
-            const myName = chat.myName || (chat.me ? chat.me.nickname : '我');
-            const targetName = chat.realName || chat.name; 
-            const typeText = type === 'video' ? '视频' : '语音';
-            const inviteMsg = {
-                id: `msg_${Date.now()}_${Math.random()}`,
-                role: 'user', 
-                content: `[${myName}向${targetName}发起了${typeText}通话]`,
-                timestamp: Date.now()
-            };
-            chat.history.push(inviteMsg);
-            await saveData();
-            if (typeof renderMessages === 'function') {
-                renderMessages(false, true);
-            }
+            const message = await this.createCallMessage(chat, 'outgoing', type);
+            this.state.callMessageId = message.id;
         }
 
         const charAvatarUrl = chat.avatar || 'https://i.postimg.cc/1zsGZ85M/Camera_1040g3k831o3b7f1bkq105oaltnigkev8gp3kia8.jpg';
@@ -1483,6 +1644,7 @@ const VideoCallModule = {
     },
 
     endCall: async function(isLoading = false) {
+        const wasConnected = this.state.hasEnteredCallScene && !isLoading;
         this._clearInterruptData();
         this.state.isCallActive = false;
         this.state.isMinimized = false;
@@ -1544,11 +1706,8 @@ const VideoCallModule = {
         
         document.getElementById('vc-status-main').style.color = "rgba(255,255,255,0.9)";
 
-        if (this.state.currentCallContext.length > 0) {
-            const startTimeDate = new Date(this.state.startTime);
-            const dateStr = `${startTimeDate.getFullYear()}/${startTimeDate.getMonth()+1}/${startTimeDate.getDate()} ${startTimeDate.getHours().toString().padStart(2,'0')}:${startTimeDate.getMinutes().toString().padStart(2,'0')}`;
-            const durationStr = this.formatDuration(this.state.seconds);
-
+        if (wasConnected && this.state.currentChat) {
+            const completedChat = this.state.currentChat;
             const callRecord = {
                 id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
                 startTime: this.state.startTime,
@@ -1558,36 +1717,24 @@ const VideoCallModule = {
                 summary: ""
             };
 
-            if (!this.state.currentChat.callHistory) {
-                this.state.currentChat.callHistory = [];
+            if (!completedChat.callHistory) {
+                completedChat.callHistory = [];
             }
-            this.state.currentChat.callHistory.push(callRecord);
-            
-            const summaryMsg = {
-                id: `msg_${Date.now()}_${Math.random()}`,
-                role: 'assistant',
-                content: `[视频通话记录：${dateStr}；${durationStr}；]`, 
-                timestamp: Date.now(),
+            completedChat.callHistory.push(callRecord);
+            await this.updateCallMessage(completedChat, this.state.callMessageId, {
+                callStatus: 'ended',
+                callDuration: this.state.seconds,
                 callRecordId: callRecord.id
-            };
-            this.state.currentChat.history.push(summaryMsg);
+            });
 
-            await saveData();
-            showToast('通话结束，正在生成总结...');
-            
-            if (typeof renderMessages === 'function' && currentChatId === this.state.currentChat.id) {
-                renderMessages(false, true);
-            }
-
-            if (typeof generateCallSummary === 'function') {
-                generateCallSummary(this.state.currentChat, this.state.currentCallContext).then(async (summary) => {
+            if (this.state.currentCallContext.length > 0 && typeof generateCallSummary === 'function') {
+                showToast('通话结束，正在生成总结...');
+                generateCallSummary(completedChat, this.state.currentCallContext).then(async (summary) => {
                     if (summary) {
                         callRecord.summary = summary;
-                        summaryMsg.content = `[视频通话记录：${dateStr}；${durationStr}；${summary}]`;
-                        
+                        this.ensureCallSummaryMessages(completedChat);
                         await saveData();
-                        
-                        if (typeof renderMessages === 'function' && currentChatId === this.state.currentChat.id) {
+                        if (typeof renderMessages === 'function' && currentChatId === completedChat.id) {
                             renderMessages(false, false);
                         }
                         showToast('通话总结已生成');
@@ -1596,7 +1743,12 @@ const VideoCallModule = {
                     }
                 });
             }
+        } else if (this.state.currentChat && this.state.callMessageId) {
+            await this.updateCallMessage(this.state.currentChat, this.state.callMessageId, {
+                callStatus: 'cancelled'
+            });
         }
+        this.state.callMessageId = null;
     },
 
     // --- 历史记录相关 (重构版 - iOS 风格 + 长按删除) ---
@@ -1674,12 +1826,11 @@ const VideoCallModule = {
                 const detailContent = document.createElement('div');
                 detailContent.className = 'vc-detail-content';
                 
-                // 1. 总结
                 const generateBtnId = `vc-gen-summary-${record.id}`;
                 const summaryText = record.summary || '';
                 const btnText = record.summary ? '重新总结' : '生成总结';
                 
-                detailContent.innerHTML += `
+                if (typeof isDebugMode !== 'undefined' && isDebugMode) detailContent.innerHTML += `
                     <div class="vc-detail-summary" id="vc-summary-container-${record.id}">
                         <div class="vc-summary-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <div class="vc-summary-label" style="margin-bottom: 0;">通话总结</div>
@@ -1690,7 +1841,7 @@ const VideoCallModule = {
                 `;
                 
                 // 绑定生成事件
-                setTimeout(() => {
+                if (typeof isDebugMode !== 'undefined' && isDebugMode) setTimeout(() => {
                     const genBtn = document.getElementById(generateBtnId);
                     if (genBtn) {
                         genBtn.addEventListener('click', async (e) => {
@@ -1703,25 +1854,15 @@ const VideoCallModule = {
                             
                             try {
                                 if (typeof generateCallSummary === 'function') {
-                                    const summary = await generateCallSummary(this.state.currentChat, record.context);
+                                    const chat = this.state.currentChat;
+                                    const summary = await generateCallSummary(chat, record.context);
                                     
                                     if (summary) {
-                                        // 1. 更新数据
                                         record.summary = summary;
-                                        
-                                        // 2. 更新聊天记录中的消息
-                                        const chat = this.state.currentChat;
-                                        const summaryMsg = chat.history.find(m => m.callRecordId === record.id);
-                                        if (summaryMsg) {
-                                            const date = new Date(record.startTime);
-                                            const dateStr = `${date.getFullYear()}/${date.getMonth()+1}/${date.getDate()} ${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}`;
-                                            const durationStr = this.formatDuration(record.duration);
-                                            summaryMsg.content = `[视频通话记录：${dateStr}；${durationStr}；${summary}]`;
-                                        }
+                                        this.ensureCallSummaryMessages(chat);
                                         
                                         await saveData();
                                         
-                                        // 3. 更新界面
                                         const container = document.getElementById(`vc-summary-container-${record.id}`);
                                         if (container) {
                                             const textEl = container.querySelector('.vc-summary-text');
@@ -1742,7 +1883,6 @@ const VideoCallModule = {
                                         
                                         showToast('通话总结已生成');
                                         
-                                        // 4. 刷新聊天界面
                                         if (typeof renderMessages === 'function' && currentChatId === chat.id) {
                                             renderMessages(false, false);
                                         }

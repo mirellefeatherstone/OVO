@@ -261,6 +261,18 @@ function createMessageBubbleElement(message, isContinuous = false) {
     if ((isStatusUpdate || isThinking || message.isTransferAction) && !isDebugMode) return null;
     // 拦截：hiddenFromDisplay 标记的消息（如角色自知上下文消息），不渲染成气泡
     if (message.hiddenFromDisplay && !isDebugMode) return null;
+    if (message.isCallMessage) {
+        const type = message.callType === 'video' ? '视频' : '语音';
+        const duration = Math.max(0, Number(message.callDuration) || 0);
+        const durationText = `${String(Math.floor(duration / 60)).padStart(2, '0')}:${String(duration % 60).padStart(2, '0')}`;
+        const labels = {
+            calling: `${type}通话中`,
+            rejected: `${type}通话已拒绝`,
+            cancelled: `${type}通话已取消`,
+            ended: `${type}通话时长 ${durationText}`
+        };
+        content = `[通话的消息：${labels[message.callStatus] || type + '通话'}]`;
+    }
 
     // 节点系统：渲染独立摘要消息
     if (message.isNodeSummaryMsg) {
@@ -834,6 +846,13 @@ function createMessageBubbleElement(message, isContinuous = false) {
     }
     const timeString = formatTimestampByFormat(timestamp, chat);
     wrapper.className = `message-wrapper ${isSent ? 'sent' : 'received'}`;
+    if (message.isCallSummary) wrapper.classList.add('call-summary-debug');
+    if (message.isCallMessage) {
+        wrapper.classList.add('call-message', `call-${message.callStatus || 'calling'}`);
+        wrapper.classList.add(message.callDirection === 'outgoing' ? 'call-outgoing' : 'call-incoming');
+        wrapper.classList.add(message.callType === 'video' ? 'call-video' : 'call-voice');
+        wrapper.style.setProperty('--call-duration', String(Math.max(0, Number(message.callDuration) || 0)));
+    }
     if (message.isContextDisabled) wrapper.classList.add('context-disabled');
     if (currentChatType === 'group' && !isSent) {
         wrapper.classList.add('group-message');
@@ -874,7 +893,7 @@ function createMessageBubbleElement(message, isContinuous = false) {
     const shopPayRequestRegex = /\[(.*?)向(.*?)发起了代付请求[：:](.*?)\|(.*?)\]/;
     
     // 通话记录格式: [视频通话记录：时间；时长；总结] 或 [语音通话记录：...]
-    const callRecordRegex = /\[(视频|语音)通话记录[：:](.*?)[；;](.*?)[；;](.*?)\]/;
+    const callRecordRegex = /\[(视频|语音)通话记录[：:](.*?)[；;](.*?)[；;]([\s\S]*?)\]/;
     // 小剧场分享卡片占位符: [小剧场分享:scenarioId]
     const theaterShareRegex = /^\[小剧场分享[：:](.+?)\]$/;
     
@@ -1254,11 +1273,14 @@ function createMessageBubbleElement(message, isContinuous = false) {
     } else if (voiceMatch) {
         bubbleElement = document.createElement('div');
         bubbleElement.className = 'voice-bubble';
+        const duration = calculateVoiceDuration(voiceMatch[1].trim());
+        bubbleElement.style.setProperty('--voice-duration', String(duration));
+        bubbleElement.dataset.duration = String(duration);
         if (!chat.useCustomBubbleCss) {
             bubbleElement.style.backgroundColor = bubbleTheme.bg;
             bubbleElement.style.color = bubbleTheme.text;
         }
-        bubbleElement.innerHTML = `<svg class="play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg><svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg><span class="duration">${calculateVoiceDuration(voiceMatch[1].trim())}"</span>`;
+        bubbleElement.innerHTML = `<svg class="play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg><svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg><span class="duration">${duration}"</span>`;
         const transcriptDiv = document.createElement('div');
         transcriptDiv.className = 'voice-transcript';
         transcriptDiv.textContent = voiceMatch[1].trim();
@@ -1717,6 +1739,14 @@ function createMessageBubbleElement(message, isContinuous = false) {
         }
     }
     wrapper.prepend(bubbleRow);
+    if (message.isCallMessage && message.callRecordId) {
+        const callBubble = bubbleRow.querySelector('.message-bubble');
+        if (callBubble) {
+            callBubble.addEventListener('click', () => {
+                window.VideoCallModule?.showDetailModal(message.callRecordId);
+            });
+        }
+    }
 
     // 首条开场白且有多条可切换时，包一层并显示左右箭头
     const isFirstGreeting = currentChatType === 'private' &&
@@ -1823,6 +1853,9 @@ function addMessageBubble(message, targetChatId, targetChatType) {
     const senderChat = (targetChatType === 'private')
         ? db.characters.find(c => c.id === targetChatId)
         : db.groups.find(g => g.id === targetChatId);
+    if (message.role === 'user' && !message.isCallMessage) {
+        window.VideoCallModule?.stopIncomingRetries(targetChatId);
+    }
     
     // 如果发送方不是自己，则准备组装系统通知
     let shouldShowSystemNotification = false;

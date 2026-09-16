@@ -245,6 +245,17 @@ async function generateImageDescription(msg, chat, apiConfig) {
 }
 
 function buildActivityProactiveTask(chat, task) {
+    if (task?.phase === 'call_followup') {
+        return [
+            '<call_followup>',
+            `你刚刚连续拨打了 ${task.attempts} 次${task.callType === 'video' ? '视频' : '语音'}通话，对方均未接听。`,
+            '这是一件刚发生的通话事件，不是要求你重新回复历史里最后一条用户消息。',
+            '根据人物性格、关系和当前语境，自主决定现在是否发送普通聊天消息。',
+            '如果不想发消息，只输出 ignore；否则按正常聊天格式发送消息。',
+            '不要再次发起通话，也不要复述历史里最后一条用户消息。',
+            '</call_followup>'
+        ].join('\n');
+    }
     if (!task?.event) return '';
 
     const event = task.event;
@@ -367,6 +378,9 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
 
     const chat = (chatType === 'private') ? db.characters.find(c => c.id === chatId) : db.groups.find(g => g.id === chatId);
     if (!chat) return;
+    if (window.VideoCallModule?.ensureCallSummaryMessages(chat)) {
+        await saveData();
+    }
     const proactiveHistoryStart = activityProactiveTask?.phase === 'response'
         ? chat.history.length
         : -1;
@@ -1071,6 +1085,11 @@ async function getAiReply(chatId, chatType, isBackground = false, isSummary = fa
             if (activityProactiveTask?.phase === 'decision') {
                 return parseActivityProactiveDecision(fullResponse);
             }
+            if (activityProactiveTask?.phase === 'call_followup' &&
+                fullResponse.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+                    .replace(/\[finire\]/gi, '').trim().toLowerCase() === 'ignore') {
+                return false;
+            }
             
             // === 【补丁：把被吃掉的开头补回来】 ===
             // 仅在 CoT 开启且检测到闭合标签时补全
@@ -1461,12 +1480,20 @@ async function executePhoneControlCommands(text, controllingChar) {
 }
 
 async function handleAiReplyContent(fullResponse, chat, targetChatId, targetChatType, isBackground = false, isCharBlockedMonologue = false, activityProactiveTask = null) {
+    if (activityProactiveTask?.phase === 'call_followup') {
+        const lastUserMessageId = [...chat.history].reverse()
+            .find(message => message.role === 'user' && !message.isCallMessage)?.id;
+        if (lastUserMessageId !== activityProactiveTask.lastUserMessageId) return;
+    }
     const rawResponse = fullResponse;
     if (fullResponse) {
         // 1. 移除 [incipere] 标签
         fullResponse = fullResponse.replace(/\[incipere\]/g, "");
+        const callRetryMatch = fullResponse.match(/<call_retry>\s*([1-5])\s*<\/call_retry>/i);
+        const callMaxAttempts = callRetryMatch ? Number(callRetryMatch[1]) : 3;
+        fullResponse = fullResponse.replace(/<call_retry>[\s\S]*?<\/call_retry>/gi, '').trim();
 
-        if (activityProactiveTask?.phase === 'response') {
+        if (activityProactiveTask?.phase === 'response' || activityProactiveTask?.phase === 'call_followup') {
             fullResponse = fullResponse
                 .replace(/\[phone-control:[^\]]*\]/gi, '')
                 .trim();
@@ -1718,21 +1745,12 @@ async function handleAiReplyContent(fullResponse, chat, targetChatId, targetChat
             const callInviteRegex = /\[(.*?)向(.*?)发起了(视频|语音)通话\]/;
             const callInviteMatch = item.content.match(callInviteRegex);
             if (callInviteMatch) {
+                if (activityProactiveTask?.phase === 'call_followup') continue;
                 const type = callInviteMatch[3] === '视频' ? 'video' : 'voice';
                 // 触发来电界面
                 if (window.VideoCallModule && typeof window.VideoCallModule.receiveCall === 'function') {
-                    window.VideoCallModule.receiveCall(type);
+                    window.VideoCallModule.receiveCall(type, targetChatId, callMaxAttempts);
                 }
-                // 不将此消息显示为普通气泡，或者显示为系统通知
-                // 这里选择显示为系统通知样式的消息
-                const message = {
-                    id: `msg_${Date.now()}_${Math.random()}`,
-                    role: 'system', // 使用 system 角色
-                    content: item.content.trim(),
-                    timestamp: Date.now()
-                };
-                chat.history.push(message);
-                addMessageBubble(message, targetChatId, targetChatType);
                 continue; // 跳过后续处理
             }
 
@@ -2560,7 +2578,8 @@ s) 发送我的位置: [${character.realName}的位置：{地点}；距你约 {�
     if (character.videoCallEnabled) {
         outputFormats += `
 q) 发起视频通话: [${character.realName}向${character.myName}发起了视频通话]
-r) 发起语音通话: [${character.realName}向${character.myName}发起了语音通话]`;
+r) 发起语音通话: [${character.realName}向${character.myName}发起了语音通话]
+主动发起通话时，可附上 <call_retry>1-5</call_retry> 决定本轮最多拨打几次；仅在无人接听时重拨。请依人格与语境选择，不必固定次数。`;
     }
 
     if (character.shopInteractionEnabled) {
