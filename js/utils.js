@@ -844,6 +844,29 @@ function filterHistoryForAI(chat, historySlice, ignoreContextDisabled = false) {
         filteredHistory = filteredHistory.filter(m => !m.isContextDisabled);
     }
 
+    filteredHistory.forEach(msg => {
+        if (!msg.isCallMessage) return;
+        const type = msg.callType === 'video' ? '视频' : '语音';
+        let event = '';
+        if (msg.callStatus === 'cancelled' && msg.callDirection === 'incoming') {
+            event = msg.callEndReason === 'user_message'
+                ? `你发起的${type}拨号在对方发送新消息后结束；对方没有明确拒绝或挂断通话。`
+                : `你拨打${type}电话，等待30秒无人接听后由你结束拨号；对方没有接听，也没有主动挂断或拒绝。`;
+        } else if (msg.callStatus === 'cancelled') {
+            event = `对方发起的${type}拨号未接通，随后由对方结束拨号；你没有明确拒绝通话。`;
+        } else if (msg.callStatus === 'rejected') {
+            event = msg.callDirection === 'incoming'
+                ? `你拨打${type}电话，对方明确拒绝了通话。`
+                : `对方拨打${type}电话，你明确拒绝了通话。`;
+        } else if (msg.callStatus === 'ended') {
+            event = `你和对方完成了一次${type}通话，实际时长${Math.max(0, Number(msg.callDuration) || 0)}秒。`;
+        }
+        if (event) {
+            msg.content = `[通话事件：${event}]`;
+            msg.parts = [{ type: 'text', text: msg.content }];
+        }
+    });
+
     // 头像操作消息：转换为 system 格式供 AI 理解
     filteredHistory.forEach(msg => {
         if (msg.isAvatarAction && msg.content) {

@@ -949,6 +949,7 @@ function initDatabase() {
 
 // 数据保存与加载
 const saveData = async () => {
+    window.VideoCallModule?.stopIncomingRetriesForNewUserMessage();
     // 存储配额预检
     if (navigator.storage && navigator.storage.estimate) {
         try {
@@ -998,6 +999,7 @@ const saveData = async () => {
 const saveCharacter = async (characterId) => {
     const character = db.characters.find(c => c.id === characterId);
     if (!character) return;
+    window.VideoCallModule?.stopIncomingRetriesForNewUserMessage();
     try {
         await dexieDB.characters.put(character);
     } catch (e) {
@@ -1012,6 +1014,7 @@ const saveCharacter = async (characterId) => {
 const saveGroup = async (groupId) => {
     const group = db.groups.find(g => g.id === groupId);
     if (!group) return;
+    window.VideoCallModule?.stopIncomingRetriesForNewUserMessage();
     try {
         await dexieDB.groups.put(group);
     } catch (e) {

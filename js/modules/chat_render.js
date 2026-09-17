@@ -268,7 +268,8 @@ function createMessageBubbleElement(message, isContinuous = false) {
         const labels = {
             calling: `${type}通话中`,
             rejected: `${type}通话已拒绝`,
-            cancelled: `${type}通话已取消`,
+            cancelled: message.callDirection === 'incoming' && message.callEndReason !== 'user_message'
+                ? `${type}通话未接听` : `${type}通话已取消`,
             ended: `${type}通话时长 ${durationText}`
         };
         content = `[通话的消息：${labels[message.callStatus] || type + '通话'}]`;
@@ -1853,9 +1854,6 @@ function addMessageBubble(message, targetChatId, targetChatType) {
     const senderChat = (targetChatType === 'private')
         ? db.characters.find(c => c.id === targetChatId)
         : db.groups.find(g => g.id === targetChatId);
-    if (message.role === 'user' && !message.isCallMessage) {
-        window.VideoCallModule?.stopIncomingRetries(targetChatId);
-    }
     
     // 如果发送方不是自己，则准备组装系统通知
     let shouldShowSystemNotification = false;

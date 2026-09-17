@@ -51,17 +51,32 @@ const VideoCallModule = {
     stopIncomingRetries: function(chatId) {
         const session = this.state.incomingSession;
         if (!session || (chatId && session.chatId !== chatId)) return;
-        if (session.messageId) {
-            void this.updateCallMessage(session.chat, session.messageId, { callStatus: 'cancelled' });
-        }
         this.clearIncomingTimers();
         this.state.incomingSession = null;
         this.state.incomingChat = null;
         this.stopRingSound();
+        const currentMessage = session.chat.history?.find(message => message.id === session.messageId);
+        if (session.messageId && currentMessage?.callEndReason !== 'no_answer') {
+            void this.updateCallMessage(session.chat, session.messageId, {
+                callStatus: 'cancelled',
+                callEndReason: 'user_message'
+            });
+        }
         const modal = document.getElementById('vc-incoming-modal');
         if (modal) {
             modal.classList.remove('visible');
             modal.style.display = 'none';
+        }
+    },
+
+    stopIncomingRetriesForNewUserMessage: function() {
+        const session = this.state.incomingSession;
+        if (!session) return;
+        const chat = session.chat;
+        const lastUserMessageId = [...(chat.history || [])].reverse()
+            .find(message => message.role === 'user' && !message.isCallMessage)?.id;
+        if (lastUserMessageId && lastUserMessageId !== session.lastUserMessageId) {
+            this.stopIncomingRetries(chat.id);
         }
     },
 
@@ -94,7 +109,8 @@ const VideoCallModule = {
         const labels = {
             calling: '拨号中',
             rejected: '已拒绝',
-            cancelled: '对方已取消',
+            cancelled: message.callDirection === 'incoming' && message.callEndReason !== 'user_message'
+                ? '未接听' : '已取消',
             ended: `通话时长 ${this.formatDuration(message.callDuration || 0)}`
         };
         message.content = `[${message.callType === 'video' ? '视频' : '语音'}通话：${labels[message.callStatus] || message.callStatus}]`;
@@ -789,15 +805,21 @@ const VideoCallModule = {
         const session = retrySession || {
             chat,
             chatId: chat.id,
+            chatType: (db.groups || []).some(group => group.id === chat.id) ? 'group' : 'private',
             type,
             attempt: 1,
             maxAttempts: Math.max(1, Math.min(5, Number(maxAttempts) || 1)),
-            messageId: null
+            messageId: null,
+            lastUserMessageId: [...(chat.history || [])].reverse()
+                .find(message => message.role === 'user' && !message.isCallMessage)?.id
         };
         this.state.incomingSession = session;
         const message = await this.createCallMessage(chat, 'incoming', type);
         if (this.state.incomingSession !== session) {
-            await this.updateCallMessage(chat, message.id, { callStatus: 'cancelled' });
+            await this.updateCallMessage(chat, message.id, {
+                callStatus: 'cancelled',
+                callEndReason: 'user_message'
+            });
             return;
         }
         session.messageId = message.id;
@@ -861,7 +883,10 @@ const VideoCallModule = {
         const modal = document.getElementById('vc-incoming-modal');
         modal.classList.remove('visible');
         modal.style.display = 'none';
-        await this.updateCallMessage(session.chat, session.messageId, { callStatus: 'cancelled' });
+        await this.updateCallMessage(session.chat, session.messageId, {
+            callStatus: 'cancelled',
+            callEndReason: 'no_answer'
+        });
         if (this.state.incomingSession !== session) return;
         if (session.attempt < session.maxAttempts) {
             session.attempt++;
@@ -877,7 +902,7 @@ const VideoCallModule = {
             try {
                 const lastUserMessageId = [...session.chat.history].reverse()
                     .find(message => message.role === 'user' && !message.isCallMessage)?.id;
-                await getAiReply(session.chatId, 'private', true, false, false, false, {
+                await getAiReply(session.chatId, session.chatType, true, false, false, false, {
                     phase: 'call_followup',
                     callType: session.type,
                     attempts: session.attempt,
@@ -1753,6 +1778,21 @@ const VideoCallModule = {
 
     // --- 历史记录相关 (重构版 - iOS 风格 + 长按删除) ---
 
+    showDetailModal: function(recordId) {
+        const chat = (currentChatType === 'group')
+            ? db.groups.find(group => group.id === currentChatId)
+            : db.characters.find(character => character.id === currentChatId);
+        if (!chat?.callHistory?.some(record => record.id === recordId)) return;
+
+        this.showHistoryModal();
+        const item = Array.from(document.querySelectorAll('#vc-history-list .vc-history-item-container'))
+            .find(element => element.dataset.callRecordId === String(recordId));
+        if (item) {
+            item.querySelector('.vc-history-header')?.click();
+            item.scrollIntoView({ block: 'nearest' });
+        }
+    },
+
     showHistoryModal: function() {
         if (!currentChatId) return;
         
@@ -1798,6 +1838,7 @@ const VideoCallModule = {
                 // 创建容器
                 const container = document.createElement('div');
                 container.className = `vc-history-item-container ${typeClass}`;
+                container.dataset.callRecordId = record.id;
 
                 // 内容包裹层
                 const contentWrapper = document.createElement('div');
@@ -1830,7 +1871,7 @@ const VideoCallModule = {
                 const summaryText = record.summary || '';
                 const btnText = record.summary ? '重新总结' : '生成总结';
                 
-                if (typeof isDebugMode !== 'undefined' && isDebugMode) detailContent.innerHTML += `
+                detailContent.innerHTML += `
                     <div class="vc-detail-summary" id="vc-summary-container-${record.id}">
                         <div class="vc-summary-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <div class="vc-summary-label" style="margin-bottom: 0;">通话总结</div>
@@ -1841,7 +1882,7 @@ const VideoCallModule = {
                 `;
                 
                 // 绑定生成事件
-                if (typeof isDebugMode !== 'undefined' && isDebugMode) setTimeout(() => {
+                setTimeout(() => {
                     const genBtn = document.getElementById(generateBtnId);
                     if (genBtn) {
                         genBtn.addEventListener('click', async (e) => {
