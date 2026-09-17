@@ -3,7 +3,7 @@ import './image-token-estimate.js?v=1';
 import './phone-keypad.js?v=1';
 import './shared-memory-journal.js?v=1';
 import './shared-memory-cloud.js?v=3';
-import './telegram-bubble-width.js?v=2';
+import './telegram-bubble-width.js?v=3';
 
 const PATCH_LOADED_EVENT = 'ovo:custom-patch-loaded';
 const CONTACTS_GROUPED_EVENT = 'ovo:contacts-grouped';

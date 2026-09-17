@@ -4,6 +4,7 @@ const BUBBLE_SELECTOR = '.message-bubble:not(.html-bubble)';
 const CONTENT_SELECTOR = ':scope > .bubble-content, :scope > .bilingual-main-text, :scope > .translation-inner';
 const TIMESTAMP_SELECTOR = ':scope > .message-time';
 const MEASUREMENTS_PER_FRAME = 12;
+const OPT_IN_PROPERTY = '--uwu-telegram-bubble-width';
 
 const managedBubbles = new WeakSet();
 const queuedBubbles = new Set();
@@ -91,6 +92,14 @@ function getDeclaredWidthForContentWidth(bubble, contentWidth) {
 function fitBubbleWidth(bubble) {
     if (!bubble.isConnected || !isTextBubble(bubble)) return;
     if (bubble.getClientRects().length === 0) return;
+
+    if (getComputedStyle(bubble).getPropertyValue(OPT_IN_PROPERTY).trim() !== '1') {
+        if (managedBubbles.has(bubble)) {
+            bubble.style.removeProperty('width');
+            managedBubbles.delete(bubble);
+        }
+        return;
+    }
 
     if (!managedBubbles.has(bubble)) {
         if (bubble.style.getPropertyValue('width')) return;
@@ -181,6 +190,14 @@ function setupTelegramBubbleWidths() {
     });
 
     mutationObserver.observe(messageArea, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+    });
+
+    new MutationObserver(() => {
+        visibleBubbles.forEach(queueBubble);
+    }).observe(document.head, {
         childList: true,
         characterData: true,
         subtree: true,
